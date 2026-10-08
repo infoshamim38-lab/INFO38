@@ -1,0 +1,6 @@
+{
+  "name": "SS SMART STUDIO",
+  "description": "All-in-one professional creative production application featuring Gemini Image-to-Prompt analysis, AI Prompt Studio, individual Icon Sheet Detection & Vector Converter, Icon Sheet Presentation Builder, and SS SMART FLOW automation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
