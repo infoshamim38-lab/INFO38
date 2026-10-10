@@ -1,323 +1,202 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  Upload,
-  Download,
   CheckCircle2,
   AlertTriangle,
-  ArrowRight,
+  Download,
   RefreshCw,
+  ArrowUpDown,
+  CircleDot,
+  Wand2,
+  LayoutGrid,
 } from 'lucide-react';
 import { useStudio } from '../../context/StudioContext';
 import { IconVariant } from '../../types/studio';
 import {
-  exportIndividualSvgsAsZip,
-  exportSingleSvg,
+  downloadPngFromSvg,
+  downloadSvgFile,
+  exportAllVectorsZip,
 } from '../../core/export/ExportEngine';
-import { generateSample25IconSheetDataUrl } from '../../core/vector-engine/IconDetectionAndVectorEngine';
 
-const VARIANTS: { id: IconVariant; label: string }[] = [
-  { id: 'VARIANT 01', label: 'VARIANT 01 · FULL BLACK SOLID' },
-  { id: 'VARIANT 02', label: 'VARIANT 02 · DOUBLE OUTLINE' },
-  { id: 'VARIANT 03', label: 'VARIANT 03 · SINGLE OUTLINE' },
+const VARIANTS: IconVariant[] = [
+  'COLOR VECTOR',
+  'VARIANT 01',
+  'VARIANT 02',
+  'VARIANT 03',
 ];
 
 export const VectorConverterModule: React.FC = () => {
   const {
-    sourceSheetImage,
     extractedIcons,
     activeVariant,
     setActiveVariant,
     batchProgress,
-    runSheetDetectionAndVectorBatch,
-    retryIconConversion,
-    skipFailedIcon,
+    convertSingleIconsOneByOne,
+    swapSingleIconColors,
+    sameSingleIconColors,
+    regeneratePresentations,
     setActiveNav,
   } = useStudio();
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedIconId, setSelectedIconId] = useState<string | null>(null);
 
-  const handleFileUpload = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      void runSheetDetectionAndVectorBatch(dataUrl, activeVariant);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFileUpload(file);
-  };
-
-  const handleLoadSample25Sheet = () => {
-    const sampleUrl = generateSample25IconSheetDataUrl();
-    void runSheetDetectionAndVectorBatch(sampleUrl, activeVariant);
-  };
-
-  const readyIcons = extractedIcons.filter((ic) => ic.status === 'Ready');
   const selectedIcon =
-    extractedIcons.find((ic) => ic.id === selectedIconId) || readyIcons[0] || null;
+    extractedIcons.find((i) => i.id === selectedIconId) || extractedIcons[0] || null;
 
-  const progressPercent =
-    batchProgress.total > 0
-      ? Math.round((batchProgress.completed / batchProgress.total) * 100)
-      : 100;
+  const handleVariantChange = (variant: IconVariant) => {
+    setActiveVariant(variant);
+    void convertSingleIconsOneByOne(variant);
+  };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Header & Three Variants Selector */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[var(--border-subtle)] pb-4">
+    <div className="max-w-7xl mx-auto space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-subtle)] pb-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            VECTOR CONVERTER
+            1-BY-1 COLOR VECTOR CONVERTER
           </h1>
           <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-            Automatically detects and separates multi-icon sheets into independent bounding boxes and clean individual SVG files (01.svg – {String(extractedIcons.length || 25).padStart(2, '0')}.svg).
+            Converts each separated Single Icon 1-by-1 into multi-color hollow-aware SVG paths with Swap & Same color controls.
           </p>
         </div>
 
-        {/* 3 Icon Variants Selector */}
-        <div className="flex flex-wrap items-center gap-1 p-1 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
-          {VARIANTS.map((v) => (
-            <button
-              key={v.id}
-              onClick={() => setActiveVariant(v.id)}
-              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
-                activeVariant === v.id
-                  ? 'bg-[var(--accent-primary)] text-slate-950 font-semibold'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Batch Progress Bar (Section 39 specification) */}
-      <div className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1.5 flex-1">
-          <div className="flex items-center justify-between text-xs font-mono tabular-nums">
-            <span className="text-[var(--text-primary)] font-semibold">
-              Processing: {batchProgress.completed} / {batchProgress.total || extractedIcons.length}
-            </span>
-            <span className="text-[var(--text-secondary)]">
-              Completed: {batchProgress.completed} · Failed: {batchProgress.failed} · Pending: {batchProgress.pending}
-            </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 p-1 rounded-md bg-[var(--bg-surface)] border border-[var(--border-subtle)]">
+            {VARIANTS.map((v) => (
+              <button
+                key={v}
+                onClick={() => handleVariantChange(v)}
+                className={`px-3 py-1.5 text-xs font-mono font-semibold rounded transition-colors ${
+                  activeVariant === v
+                    ? 'bg-[var(--accent-primary)] text-slate-950'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                {v}
+              </button>
+            ))}
           </div>
-          <div className="w-full h-2 rounded-full bg-[var(--bg-canvas)] overflow-hidden border border-[var(--border-subtle)]">
-            <div
-              className="h-full bg-[var(--accent-primary)] transition-all duration-150"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] flex items-center gap-1.5 whitespace-nowrap"
+            onClick={() => void convertSingleIconsOneByOne(activeVariant)}
+            disabled={extractedIcons.length === 0 || batchProgress.active}
+            className="px-4 py-2 text-xs font-bold rounded bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 flex items-center gap-1.5"
           >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Upload Icon Sheet</span>
+            <Wand2 className={`w-3.5 h-3.5 ${batchProgress.active ? 'animate-spin' : ''}`} />
+            <span>
+              {batchProgress.active
+                ? `Vectorizing ${batchProgress.completed}/${batchProgress.total}...`
+                : `Vector (1-by-1 Convert All ${extractedIcons.length})`}
+            </span>
           </button>
 
           <button
             type="button"
-            onClick={handleLoadSample25Sheet}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)] flex items-center gap-1.5 whitespace-nowrap"
+            onClick={() => {
+              regeneratePresentations();
+              setActiveNav('icon-sheet');
+            }}
+            disabled={extractedIcons.length === 0}
+            className="px-4 py-2 text-xs font-bold rounded bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Reload 25-Icon Sheet</span>
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>Icon Sheet (Build Presentation)</span>
           </button>
 
           <button
             type="button"
-            onClick={() => exportIndividualSvgsAsZip(readyIcons)}
-            disabled={readyIcons.length === 0}
-            className="px-3.5 py-1.5 text-xs font-semibold rounded bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 disabled:opacity-40 flex items-center gap-1.5 whitespace-nowrap"
+            onClick={() => void exportAllVectorsZip(extractedIcons)}
+            disabled={extractedIcons.length === 0}
+            className="px-3.5 py-2 text-xs font-semibold rounded bg-[var(--bg-elevated)] text-[var(--accent-primary)] border border-[var(--accent-primary)]/40 flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export {readyIcons.length} SVGs (ZIP)</span>
+            <span>Export All (.ZIP)</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveNav('icon-sheet')}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-[var(--bg-elevated)] text-[var(--accent-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] flex items-center gap-1 whitespace-nowrap"
-          >
-            <span>Open Icon Sheet</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleFileUpload(f);
-            }}
-          />
         </div>
       </div>
 
-      {/* Main Grid: Source Sheet Detection + Individual SVG Grid + Single SVG Inspector */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: Uploaded Icon Sheet + Bounding Box Overlay (4 cols) */}
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleDrop}
-          className="lg:col-span-4 p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-3"
-        >
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-[var(--text-secondary)]">
-              ICON SHEET DETECTION
-            </span>
-            <span className="font-mono text-[var(--accent-primary)]">
-              {extractedIcons.length} Icons Detected
-            </span>
-          </div>
-
-          {sourceSheetImage && (
-            <div className="rounded border border-[var(--border-subtle)] bg-white p-2 flex items-center justify-center">
-              <img
-                src={sourceSheetImage}
-                alt="Source Icon Sheet"
-                referrerPolicy="no-referrer"
-                className="max-h-72 w-auto object-contain"
-              />
-            </div>
-          )}
-
-          {/* Selected Icon SVG Inspector */}
-          {selectedIcon && (
-            <div className="pt-3 border-t border-[var(--border-subtle)] space-y-3 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-mono font-semibold text-[var(--text-primary)]">
-                  Inspector: {selectedIcon.name}
+      {/* Screenshot #2 Style Vector Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+        {extractedIcons.map((icon) => {
+          const isSelected = selectedIcon?.id === icon.id;
+          const isConverting = icon.status === 'Converting';
+          return (
+            <div
+              key={icon.id}
+              onClick={() => setSelectedIconId(icon.id)}
+              className={`rounded-2xl bg-white text-slate-900 p-4 shadow-sm border-2 transition-all cursor-pointer flex flex-col justify-between min-h-[240px] ${
+                isSelected
+                  ? 'border-indigo-600 ring-2 ring-indigo-500/20'
+                  : 'border-slate-200 hover:border-indigo-300'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-600">
+                  #{icon.index} {isConverting ? 'Converting...' : 'Vector'}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => exportSingleSvg(selectedIcon)}
-                  className="px-2.5 py-1 rounded bg-[var(--accent-primary)] text-slate-950 font-semibold hover:opacity-90"
-                >
-                  Download {selectedIcon.name}
-                </button>
-              </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div className="p-3 rounded bg-white border border-[var(--border-subtle)] flex flex-col items-center justify-center h-28">
-                  <div
-                    className="w-16 h-16 flex items-center justify-center"
-                    dangerouslySetInnerHTML={{ __html: selectedIcon.svgContent }}
-                  />
-                  <span className="text-[10px] font-mono text-slate-500 mt-1">
-                    Vector SVG ({selectedIcon.variant})
-                  </span>
-                </div>
-
-                <div className="p-2.5 rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] font-mono text-[11px] text-[var(--text-secondary)] space-y-1">
-                  <div>File: {selectedIcon.name}</div>
-                  <div>
-                    ViewBox: 0 0 {selectedIcon.originalWidth} {selectedIcon.originalHeight}
-                  </div>
-                  <div>Aspect: {selectedIcon.aspectRatio}:1</div>
-                  <div className="text-emerald-400">✓ Clean Paths</div>
-                  <div className="text-emerald-400">✓ No Background</div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right: Individual SVG Files Grid (01.svg .. 25.svg) (8 cols) */}
-        <div className="lg:col-span-8 p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-4">
-          <div className="flex items-center justify-between text-xs border-b border-[var(--border-subtle)] pb-2.5">
-            <span className="font-semibold text-[var(--text-secondary)]">
-              INDIVIDUAL SVG FILES (01.svg – {String(extractedIcons.length).padStart(2, '0')}.svg)
-            </span>
-            <span className="text-[var(--text-muted)]">
-              Click any icon to inspect or download individually
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3 max-h-[540px] overflow-y-auto pr-1">
-            {extractedIcons.map((icon) => {
-              const isSelected = selectedIcon?.id === icon.id;
-              if (icon.status === 'Failed') {
-                return (
-                  <div
-                    key={icon.id}
-                    className="p-3 rounded border border-rose-500/50 bg-rose-950/20 flex flex-col justify-between gap-2 text-xs"
-                  >
-                    <div className="flex items-center justify-between font-mono text-rose-300">
-                      <span>{icon.name}</span>
-                      <AlertTriangle className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="text-[11px] text-rose-200">
-                      Vector conversion failed.
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => retryIconConversion(icon.id)}
-                        className="flex-1 py-1 rounded bg-rose-500 text-white text-[11px] font-semibold"
-                      >
-                        Retry
-                      </button>
-                      <button
-                        onClick={() => skipFailedIcon(icon.id)}
-                        className="flex-1 py-1 rounded bg-[var(--bg-elevated)] text-[var(--text-secondary)] text-[11px]"
-                      >
-                        Skip
-                      </button>
-                    </div>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key={icon.id}
-                  onClick={() => setSelectedIconId(icon.id)}
-                  className={`cursor-pointer p-3 rounded border transition-colors flex flex-col items-center justify-between gap-2 ${
-                    isSelected
-                      ? 'border-[var(--accent-primary)] bg-[var(--accent-soft)]'
-                      : 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] hover:border-[var(--accent-primary)]/60'
-                  }`}
-                >
-                  <div className="w-full flex items-center justify-between text-[11px] font-mono text-[var(--text-secondary)]">
-                    <span>{icon.name}</span>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                  </div>
-
-                  <div className="w-20 h-20 rounded bg-white p-2 flex items-center justify-center border border-slate-200">
-                    <div
-                      className="w-full h-full flex items-center justify-center"
-                      dangerouslySetInnerHTML={{ __html: icon.svgContent }}
-                    />
-                  </div>
-
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      exportSingleSvg(icon);
-                    }}
-                    className="w-full py-1 text-[11px] font-medium rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]"
+                    onClick={() => swapSingleIconColors(icon.id)}
+                    className="px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 flex items-center gap-1"
                   >
-                    Export SVG
+                    <ArrowUpDown className="w-3 h-3" />
+                    <span>Swap</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => sameSingleIconColors(icon.id)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-semibold border flex items-center gap-1 ${
+                      icon.isUnifiedColor
+                        ? 'bg-pink-600 text-white border-pink-600'
+                        : 'bg-pink-50 text-pink-600 border-pink-200 hover:bg-pink-100'
+                    }`}
+                  >
+                    <CircleDot className="w-3 h-3" />
+                    <span>Same</span>
                   </button>
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              </div>
+
+              <div className="my-2 flex-1 flex items-center justify-center p-4">
+                {isConverting ? (
+                  <RefreshCw className="w-7 h-7 text-indigo-600 animate-spin" />
+                ) : (
+                  <div
+                    className="w-36 h-36 flex items-center justify-center [&>svg]:w-full [&>svg]:h-full"
+                    dangerouslySetInnerHTML={{ __html: icon.svgContent }}
+                  />
+                )}
+              </div>
+
+              <div
+                className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-mono text-slate-500"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span>{icon.validation.pathCount} SVG Paths</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => downloadSvgFile(`${icon.name}.svg`, icon.svgContent)}
+                    className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold"
+                  >
+                    SVG
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void downloadPngFromSvg(`${icon.name}.png`, icon.svgContent, 1024)
+                    }
+                    className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold"
+                  >
+                    PNG
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

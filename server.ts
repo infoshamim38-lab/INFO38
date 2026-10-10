@@ -417,14 +417,14 @@ Rules:
     }
   });
 
-  // 5. Server-Side Download for SS SMART FLOW Chrome Extension v4.1 ZIP (Direct C++ Hardware Input.insertText + MAIN World Auto-Generate Engine)
+  // 5. Server-Side Download for SS SMART FLOW Chrome Extension v4.5 ZIP (Strict Single-Download Lock + 1000-Image Sequential Queue Bridge)
   const getExtensionFiles = () => {
     const manifest = JSON.stringify(
       {
         manifest_version: 3,
         name: 'SS SMART FLOW',
-        version: '4.1.0',
-        description: 'Official Chrome Automation Bridge (Direct Hardware Auto-Paste & Auto-Generate Engine v4.1) for SS SMART STUDIO -> Google Labs Flow / ImageFX.',
+        version: '4.5.0',
+        description: 'Official Chrome Automation Bridge (Single-Download Lock + 1000-Image 1-by-1 Auto Queue Engine v4.5) for SS SMART STUDIO -> Google Flow.',
         permissions: [
           'activeTab',
           'tabs',
@@ -438,7 +438,7 @@ Rules:
         host_permissions: ['<all_urls>'],
         action: {
           default_popup: 'popup.html',
-          default_title: 'SS SMART FLOW v4.1',
+          default_title: 'SS SMART FLOW v4.5',
         },
         background: {
           service_worker: 'background.js',
@@ -460,7 +460,7 @@ Rules:
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>SS SMART FLOW v4.1</title>
+  <title>SS SMART FLOW v4.4</title>
   <style>
     body {
       width: 280px;
@@ -481,10 +481,10 @@ Rules:
   </style>
 </head>
 <body>
-  <h1>SS SMART FLOW v4.1</h1>
+  <h1>SS SMART FLOW v4.4</h1>
   <div class="row"><span>Status</span><span id="statusText" class="status">● Connected</span></div>
-  <div class="row"><span>Engine</span><span>Hardware Paste + Generate</span></div>
-  <div class="row"><span>Browser</span><span>Connected</span></div>
+  <div class="row"><span>Target</span><span>flow.google.com</span></div>
+  <div class="row"><span>Engine</span><span>White Arrow (→) Auto-Click</span></div>
   <div class="row"><span>Flow</span><span id="flowState">Ready</span></div>
   <button id="openFlowBtn" class="open-btn">Open Google Flow Tab</button>
   <div class="actions">
@@ -496,7 +496,7 @@ Rules:
 </html>`;
 
     const popupJs = `document.getElementById('openFlowBtn').addEventListener('click', () => {
-  chrome.tabs.create({ url: 'https://labs.google/fx/tools/flow' });
+  chrome.tabs.create({ url: 'https://flow.google.com/' });
 });
 document.getElementById('pauseBtn').addEventListener('click', () => {
   chrome.storage.local.set({ paused: true });
@@ -507,7 +507,7 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
   document.getElementById('statusText').textContent = '○ Disconnected';
 });`;
 
-    const contentJs = `// SS SMART FLOW v4.1 Content Bridge (Hardware Auto-Paste + Auto-Generate Engine)
+    const contentJs = `// SS SMART FLOW v4.4 Content Bridge (Targets Bottom-Right White Arrow Submit Button on flow.google.com)
 (function() {
   function extractPromptFromUrl(urlStr) {
     try {
@@ -535,14 +535,30 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
     }
   } catch (e) {}
 
-  // Heartbeat PONG every 1.2s so SS SMART STUDIO inside any iframe always shows real-time Connected v4.1 status
+  // Heartbeat PONG every 1.2s so SS SMART STUDIO inside any iframe always shows real-time Connected v4.5 status
   function sendPong() {
     try {
-      window.postMessage({ source: 'SS_SMART_FLOW_EXT', type: 'EXT_PONG', version: '4.1.0' }, '*');
+      window.postMessage({ source: 'SS_SMART_FLOW_EXT', type: 'EXT_PONG', version: '4.5.0' }, '*');
     } catch (e) {}
   }
   sendPong();
   setInterval(sendPong, 1200);
+
+  // Relay background completion events back to SS SMART STUDIO window for 1-by-1 sequential queue
+  try {
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg && msg.type === 'FLOW_TASK_COMPLETED') {
+        try {
+          window.postMessage({
+            source: 'SS_SMART_FLOW_EXT',
+            type: 'FLOW_TASK_COMPLETED',
+            prompt: msg.prompt || '',
+            imageUrl: msg.imageUrl || ''
+          }, '*');
+        } catch (e) {}
+      }
+    });
+  } catch (e) {}
 
   window.addEventListener('message', (event) => {
     if (!event.data || event.data.source !== 'SS_SMART_STUDIO') return;
@@ -563,13 +579,27 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
         chrome.runtime.sendMessage({
           type: 'DISPATCH_TO_FLOW',
           prompt: event.data.prompt,
-          targetUrl: event.data.targetUrl || 'https://labs.google/fx/tools/flow',
+          targetUrl: event.data.targetUrl || 'https://flow.google.com/',
           options: event.data.options || {},
           openedByAnchor: Boolean(event.data.openedByAnchor)
         });
       } catch (e) {}
     }
   });
+
+  const isGoogleFlowHost = () => {
+    const h = (location.hostname || '').toLowerCase();
+    const u = (location.href || '').toLowerCase();
+    return (
+      h.includes('flow.google') ||
+      h.includes('labs.google') ||
+      u.includes('/fx/tools/')
+    );
+  };
+
+  if (!isGoogleFlowHost() || window !== window.top) {
+    return;
+  }
 
   try {
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -581,10 +611,6 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
       return true;
     });
   } catch (e) {}
-
-  const isGoogleFlowHost = () =>
-    location.hostname.includes('labs.google') ||
-    location.href.includes('/fx/tools/');
 
   function queryAllDeep(selector, root = document) {
     const results = [];
@@ -602,22 +628,38 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
 
   function findFlowPromptBox() {
     const candidates = queryAllDeep(
-      'textarea, div[contenteditable="true"], [role="textbox"], div[data-slate-editor="true"], div[data-lexical-editor="true"], .ProseMirror, input[type="text"]'
+      'textarea, [contenteditable="true"], [contenteditable="plaintext-only"], [contenteditable=""], [role="textbox"], div[data-slate-editor="true"], div[data-lexical-editor="true"], .ProseMirror, input[type="text"], input:not([type])'
     );
     const visible = candidates.filter((el) => {
-      if (el.id && el.id.startsWith('ss-hud')) return false;
+      if (!el || (el.id && el.id.startsWith('ss-hud'))) return false;
+      if (el.closest && el.closest('#ss-smart-flow-hud')) return false;
       const rect = el.getBoundingClientRect();
       const style = window.getComputedStyle(el);
-      if (rect.width < 120 || rect.height < 18) return false;
+      if (rect.width < 140 || rect.height < 18) return false;
+      // CRITICAL: Exclude top header bar & top search bar (y < 90px)!
+      if (rect.top < 90) return false;
       if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) === 0) return false;
+
+      const hint = (
+        (el.getAttribute('placeholder') || '') + ' ' +
+        (el.getAttribute('aria-label') || '') + ' ' +
+        (el.getAttribute('data-placeholder') || '') + ' ' +
+        (el.value || '')
+      ).toLowerCase();
+
+      if (hint.includes('search')) return false;
       return true;
     });
 
     visible.sort((a, b) => {
-      const aHint = ((a.getAttribute('placeholder') || '') + ' ' + (a.getAttribute('aria-label') || '')).toLowerCase();
-      const bHint = ((b.getAttribute('placeholder') || '') + ' ' + (b.getAttribute('aria-label') || '')).toLowerCase();
-      const aScore = (aHint.includes('prompt') || aHint.includes('describe') || aHint.includes('generate') || aHint.includes('create') || aHint.includes('ask') ? 500000 : 0) + a.getBoundingClientRect().width * a.getBoundingClientRect().height;
-      const bScore = (bHint.includes('prompt') || bHint.includes('describe') || bHint.includes('generate') || bHint.includes('create') || bHint.includes('ask') ? 500000 : 0) + b.getBoundingClientRect().width * b.getBoundingClientRect().height;
+      const aHint = ((a.getAttribute('placeholder') || '') + ' ' + (a.getAttribute('aria-label') || '') + ' ' + (a.getAttribute('data-placeholder') || '')).toLowerCase();
+      const bHint = ((b.getAttribute('placeholder') || '') + ' ' + (b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('data-placeholder') || '')).toLowerCase();
+      const aPromptBonus = (aHint.includes('prompt') || aHint.includes('describe') || aHint.includes('generate') || aHint.includes('create') || aHint.includes('scene') || aHint.includes('imagine') || aHint.includes('ask') || aHint.includes('type') ? 600000 : 0);
+      const bPromptBonus = (bHint.includes('prompt') || bHint.includes('describe') || bHint.includes('generate') || bHint.includes('create') || bHint.includes('scene') || bHint.includes('imagine') || bHint.includes('ask') || bHint.includes('type') ? 600000 : 0);
+      const aTagBonus = (a.tagName === 'TEXTAREA' || a.getAttribute('contenteditable') !== null ? 300000 : 0);
+      const bTagBonus = (b.tagName === 'TEXTAREA' || b.getAttribute('contenteditable') !== null ? 300000 : 0);
+      const aScore = aPromptBonus + aTagBonus + a.getBoundingClientRect().top * 200 + a.getBoundingClientRect().width * a.getBoundingClientRect().height;
+      const bScore = bPromptBonus + bTagBonus + b.getBoundingClientRect().top * 200 + b.getBoundingClientRect().width * b.getBoundingClientRect().height;
       return bScore - aScore;
     });
     return visible[0] || null;
@@ -626,19 +668,35 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
   function findNewProjectButton() {
     const buttons = queryAllDeep('button, a, [role="button"]');
     for (const btn of buttons) {
-      if (btn.id && btn.id.startsWith('ss-hud')) continue;
-      const txt = ((btn.innerText || '') + ' ' + (btn.getAttribute('aria-label') || '')).trim().toLowerCase();
+      if (!btn || (btn.id && btn.id.startsWith('ss-hud'))) continue;
+      if (btn.closest && btn.closest('#ss-smart-flow-hud')) continue;
+      const txt = ((btn.innerText || btn.textContent || '') + ' ' + (btn.getAttribute('aria-label') || '')).replace(/\\s+/g, ' ').trim().toLowerCase();
       if (
-        txt === 'new project' ||
-        txt.includes('+ new project') ||
         txt.includes('new project') ||
         txt.includes('create project') ||
+        txt.includes('start project') ||
         txt.includes('start creating') ||
         txt.includes('create with flow') ||
-        txt.includes('enter flow')
+        txt.includes('new flow')
       ) {
         const rect = btn.getBoundingClientRect();
-        if (rect.width > 36 && rect.height > 20) return btn;
+        const style = window.getComputedStyle(btn);
+        if (rect.width > 36 && rect.height > 20 && style.display !== 'none' && style.visibility !== 'hidden') {
+          return btn;
+        }
+      }
+    }
+    const divs = queryAllDeep('div, span');
+    for (const el of divs) {
+      if (!el || (el.id && el.id.startsWith('ss-hud'))) continue;
+      if (el.closest && el.closest('#ss-smart-flow-hud')) continue;
+      const txt = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+      if (txt === 'new project' || txt === '+ new project' || txt === 'add new project') {
+        const rect = el.getBoundingClientRect();
+        const style = window.getComputedStyle(el);
+        if (rect.width >= 50 && rect.width <= 450 && rect.height >= 24 && rect.height <= 200 && style.display !== 'none' && style.visibility !== 'hidden') {
+          return (el.closest && el.closest('button, a, [role="button"]')) || el;
+        }
       }
     }
     return null;
@@ -662,21 +720,28 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
     if (typeof el.click === 'function') el.click();
   }
 
+  let currentHudStatus = 'Initializing...';
+  let currentManualCallback = null;
+
   function showFlowHud(statusMessage, promptPreview, onManualTrigger) {
-    if (!document.body) return;
+    if (statusMessage) currentHudStatus = statusMessage;
+    if (onManualTrigger) currentManualCallback = onManualTrigger;
+    const rootTarget = document.documentElement || document.body;
+    if (!rootTarget) return;
+
     let hud = document.getElementById('ss-smart-flow-hud');
     if (!hud) {
       hud = document.createElement('div');
       hud.id = 'ss-smart-flow-hud';
-      hud.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:2147483647;width:350px;background:#090D16;color:#F8FAFC;border:2px solid #38BDF8;border-radius:10px;padding:14px;font-family:sans-serif;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-size:12px;';
-      document.body.appendChild(hud);
+      hud.style.cssText = 'position:fixed;top:68px;right:20px;z-index:2147483647;width:350px;background:#090D16;color:#F8FAFC;border:2px solid #38BDF8;border-radius:10px;padding:12px;font-family:sans-serif;box-shadow:0 12px 32px rgba(0,0,0,0.85);font-size:12px;';
+      rootTarget.appendChild(hud);
     }
 
-    const safePreview = (promptPreview || '').slice(0, 95) + ((promptPreview || '').length > 95 ? '...' : '');
+    const safePreview = (promptPreview || '').slice(0, 90) + ((promptPreview || '').length > 90 ? '...' : '');
     hud.innerHTML = \`
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <strong style="color:#38BDF8;font-size:13px;letter-spacing:0.04em;">⚡ SS SMART FLOW v4.1</strong>
-        <span style="color:#22C55E;font-weight:600;font-size:11px;" id="ss-hud-status">\${statusMessage}</span>
+        <strong style="color:#38BDF8;font-size:13px;letter-spacing:0.04em;">⚡ SS SMART FLOW v4.4</strong>
+        <span style="color:#22C55E;font-weight:600;font-size:11px;" id="ss-hud-status">\${currentHudStatus}</span>
       </div>
       <div style="background:#111726;padding:8px;border-radius:6px;color:#94A3B8;font-size:11px;margin-bottom:10px;word-break:break-word;border:1px solid #1E293B;">
         \${safePreview || 'Waiting for prompt...'}
@@ -692,8 +757,8 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
     \`;
 
     const runBtn = document.getElementById('ss-hud-run-btn');
-    if (runBtn && onManualTrigger) {
-      runBtn.onclick = () => onManualTrigger();
+    if (runBtn && currentManualCallback) {
+      runBtn.onclick = () => currentManualCallback();
     }
     const closeBtn = document.getElementById('ss-hud-close-btn');
     if (closeBtn) {
@@ -702,13 +767,18 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
   }
 
   function updateHudStatus(text) {
+    currentHudStatus = text;
     const el = document.getElementById('ss-hud-status');
     if (el) el.textContent = text;
   }
 
   let activeLoopTimer = null;
+  let activeWatchTimer = null;
   let isSubmittingNow = false;
   let activePromptInFlight = null;
+  let hasDownloadedCurrentPrompt = false;
+  const globalSeenImageSrcs = new Set();
+  let lastNewProjectClickTime = 0;
 
   function triggerHardwarePasteAndGenerate(promptText, options = {}, onSuccess) {
     if (isSubmittingNow) return;
@@ -716,8 +786,11 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
     if (!inputEl) {
       const newProjBtn = findNewProjectButton();
       if (newProjBtn) {
-        updateHudStatus('Opening Flow Project...');
+        updateHudStatus('Clicking + New project...');
         triggerFullPointerClick(newProjBtn);
+        try {
+          chrome.runtime.sendMessage({ type: 'CDP_CLICK_NEW_PROJECT' });
+        } catch (e) {}
       } else {
         updateHudStatus('Waiting for Flow Editor...');
       }
@@ -725,7 +798,13 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
     }
 
     isSubmittingNow = true;
-    updateHudStatus('Hardware Typing & Clicking Generate...');
+    hasDownloadedCurrentPrompt = false;
+    updateHudStatus('Pasting & Clicking White Arrow (→)...');
+
+    // Snapshot all currently visible images BEFORE clicking Generate so we only detect the newly generated image
+    queryAllDeep('img').forEach((img) => {
+      if (img && img.src) globalSeenImageSrcs.add(img.src);
+    });
 
     try {
       chrome.runtime.sendMessage(
@@ -735,9 +814,10 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
         },
         (res) => {
           isSubmittingNow = false;
-          updateHudStatus('✓ Prompt Pasted & Generating!');
+          const btnLabel = res && res.btnLabel ? \` [\${res.btnLabel}]\` : '';
+          updateHudStatus(\`✓ Clicked Generate\${btnLabel}!\`);
           if (options.autoDetectResult !== false) {
-            watchForGeneratedImages(options.autoDownload !== false);
+            watchForGeneratedImages(options.autoDownload !== false, promptText);
           }
           if (onSuccess) onSuccess(res);
         }
@@ -749,33 +829,48 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
 
   function startFlowAutomationLoop(promptText, options = {}, forceRestart = false) {
     if (!promptText) return;
-    if (!forceRestart && activePromptInFlight === promptText && activeLoopTimer) return;
+    if (!forceRestart && activePromptInFlight === promptText && (activeLoopTimer || isSubmittingNow)) return;
 
     activePromptInFlight = promptText;
-    if (activeLoopTimer) clearInterval(activeLoopTimer);
+    hasDownloadedCurrentPrompt = false;
+    if (activeLoopTimer) {
+      clearInterval(activeLoopTimer);
+      activeLoopTimer = null;
+    }
+    if (activeWatchTimer) {
+      clearInterval(activeWatchTimer);
+      activeWatchTimer = null;
+    }
 
     const bootHud = () => {
-      showFlowHud('Searching Flow Editor...', promptText, () => {
+      showFlowHud('Searching Flow Workspace...', promptText, () => {
         isSubmittingNow = false;
+        hasDownloadedCurrentPrompt = false;
         triggerHardwarePasteAndGenerate(promptText, options);
       });
     };
-    if (document.body) bootHud();
-    else window.addEventListener('DOMContentLoaded', bootHud);
+    bootHud();
 
     let attempts = 0;
-    const maxAttempts = 60;
+    const maxAttempts = 75;
 
     activeLoopTimer = setInterval(() => {
+      if (!document.getElementById('ss-smart-flow-hud')) {
+        bootHud();
+      }
       if (isSubmittingNow) return;
       attempts++;
 
       const inputEl = findFlowPromptBox();
       if (!inputEl) {
         const newProjBtn = findNewProjectButton();
-        if (newProjBtn && attempts % 2 === 1) {
-          updateHudStatus('Opening New Flow Project...');
+        if (newProjBtn && Date.now() - lastNewProjectClickTime > 4000) {
+          lastNewProjectClickTime = Date.now();
+          updateHudStatus('Opening + New project...');
           triggerFullPointerClick(newProjBtn);
+          try {
+            chrome.runtime.sendMessage({ type: 'CDP_CLICK_NEW_PROJECT' });
+          } catch (e) {}
         }
         if (attempts >= maxAttempts) {
           clearInterval(activeLoopTimer);
@@ -785,85 +880,118 @@ document.getElementById('disconnectBtn').addEventListener('click', () => {
         return;
       }
 
-      // Prompt box found! Stop loop and execute full hardware paste + generate sequence
       clearInterval(activeLoopTimer);
       activeLoopTimer = null;
 
-      triggerHardwarePasteAndGenerate(promptText, options, () => {
-        sessionStorage.removeItem('ss_smart_flow_pending_prompt');
-        try {
-          chrome.storage.local.set({ ss_pending_done: true });
-        } catch (e) {}
-      });
-    }, 1200);
+      setTimeout(() => {
+        triggerHardwarePasteAndGenerate(promptText, options, () => {
+          sessionStorage.removeItem('ss_smart_flow_pending_prompt');
+          try {
+            chrome.storage.local.set({ ss_pending_done: true });
+          } catch (e) {}
+        });
+      }, 450);
+    }, 1000);
   }
 
-  function watchForGeneratedImages(shouldDownload) {
-    const existingSrcs = new Set(queryAllDeep('img').map((img) => img.src));
+  // Strictly downloads ONLY 1 image per generated prompt and notifies Studio when finished!
+  function watchForGeneratedImages(shouldDownload, promptKey) {
+    if (activeWatchTimer) {
+      clearInterval(activeWatchTimer);
+      activeWatchTimer = null;
+    }
+
     let checks = 0;
-    const checkTimer = setInterval(() => {
+    activeWatchTimer = setInterval(() => {
       checks++;
+      if (hasDownloadedCurrentPrompt) {
+        clearInterval(activeWatchTimer);
+        activeWatchTimer = null;
+        return;
+      }
+
       const imgs = queryAllDeep('img');
-      const newLargeImg = imgs.find((img) => {
+      const newLargeImgs = imgs.filter((img) => {
+        if (!img || !img.src || globalSeenImageSrcs.has(img.src)) return false;
         const rect = img.getBoundingClientRect();
         return (
-          img.src &&
-          !existingSrcs.has(img.src) &&
           rect.width >= 180 &&
           rect.height >= 180 &&
+          img.complete &&
+          (img.naturalWidth === 0 || img.naturalWidth >= 180) &&
           (img.src.startsWith('blob:') || img.src.startsWith('data:image') || img.src.startsWith('http'))
         );
       });
 
-      if (newLargeImg) {
-        clearInterval(checkTimer);
-        updateHudStatus('✓ Image Generated & Detected!');
+      if (newLargeImgs.length > 0) {
+        clearInterval(activeWatchTimer);
+        activeWatchTimer = null;
+        hasDownloadedCurrentPrompt = true;
+
+        // Mark ALL newly rendered images as seen so even if Flow displays 2 variations, ONLY 1 image is downloaded!
+        const chosenImg = newLargeImgs[0];
+        newLargeImgs.forEach((im) => globalSeenImageSrcs.add(im.src));
+        imgs.forEach((im) => {
+          if (im && im.src) globalSeenImageSrcs.add(im.src);
+        });
+
+        updateHudStatus('✓ 1 Image Downloaded!');
         if (shouldDownload) {
           try {
             chrome.runtime.sendMessage({
               type: 'DOWNLOAD_FLOW_RESULT',
-              url: newLargeImg.src,
+              url: chosenImg.src,
+              promptKey: promptKey || activePromptInFlight || '',
               filename: 'SS-SMART-FLOW-' + Date.now() + '.png'
             });
           } catch (e) {}
         }
-      } else if (checks >= 90) {
-        clearInterval(checkTimer);
+      } else if (checks >= 100) {
+        clearInterval(activeWatchTimer);
+        activeWatchTimer = null;
       }
-    }, 1500);
+    }, 1400);
   }
 
-  // On Google Flow host, continuously watch sessionStorage + chrome.storage.local so redirects never lose the job
-  if (isGoogleFlowHost()) {
-    const checkPendingJob = () => {
-      const pendingSession = sessionStorage.getItem('ss_smart_flow_pending_prompt');
-      if (pendingSession) {
-        startFlowAutomationLoop(pendingSession, { autoSubmit: true, autoGenerate: true, autoDetectResult: true, autoDownload: true });
-        return;
-      }
-      try {
-        chrome.storage.local.get(['ss_pending_prompt', 'ss_pending_time', 'ss_pending_done', 'ss_pending_options'], (res) => {
-          if (
-            res &&
-            res.ss_pending_prompt &&
-            !res.ss_pending_done &&
-            Date.now() - (res.ss_pending_time || 0) < 180000
-          ) {
-            startFlowAutomationLoop(res.ss_pending_prompt, res.ss_pending_options || {});
-          }
-        });
-      } catch (e) {}
-    };
+  const checkPendingJob = () => {
+    const pendingSession = sessionStorage.getItem('ss_smart_flow_pending_prompt');
+    if (pendingSession) {
+      sessionStorage.removeItem('ss_smart_flow_pending_prompt');
+      startFlowAutomationLoop(pendingSession, { autoSubmit: true, autoGenerate: true, autoDetectResult: true, autoDownload: true });
+      return;
+    }
+    try {
+      chrome.storage.local.get(['ss_pending_prompt', 'ss_pending_time', 'ss_pending_done', 'ss_pending_options'], (res) => {
+        if (
+          res &&
+          res.ss_pending_prompt &&
+          !res.ss_pending_done &&
+          Date.now() - (res.ss_pending_time || 0) < 240000
+        ) {
+          startFlowAutomationLoop(res.ss_pending_prompt, res.ss_pending_options || {});
+        }
+      });
+    } catch (e) {}
+  };
 
-    checkPendingJob();
-    setInterval(checkPendingJob, 1500);
-  }
+  checkPendingJob();
+  setInterval(checkPendingJob, 1500);
 })();`;
 
     const backgroundJs = `chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ connected: true, paused: false });
-  console.log('SS SMART FLOW Extension v4.1 Installed.');
+  console.log('SS SMART FLOW Extension v4.5 Installed.');
 });
+
+function isFlowUrl(urlStr) {
+  if (!urlStr) return false;
+  const u = urlStr.toLowerCase();
+  return (
+    u.includes('flow.google') ||
+    u.includes('labs.google') ||
+    u.includes('/fx/tools/')
+  );
+}
 
 function capturePromptFromTabUrl(urlStr) {
   if (!urlStr || !urlStr.includes('ss_prompt=')) return null;
@@ -895,13 +1023,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     capturePromptFromTabUrl(changeInfo.url);
   }
   const currentUrl = tab.url || changeInfo.url || '';
-  if (changeInfo.status === 'complete' && (currentUrl.includes('labs.google') || currentUrl.includes('/fx/tools/'))) {
+  if (changeInfo.status === 'complete' && isFlowUrl(currentUrl)) {
     chrome.storage.local.get(['ss_pending_prompt', 'ss_pending_time', 'ss_pending_done', 'ss_pending_options'], (res) => {
       if (
         res &&
         res.ss_pending_prompt &&
         !res.ss_pending_done &&
-        Date.now() - (res.ss_pending_time || 0) < 180000
+        Date.now() - (res.ss_pending_time || 0) < 240000
       ) {
         setTimeout(() => {
           chrome.tabs.sendMessage(tabId, {
@@ -909,14 +1037,15 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             prompt: res.ss_pending_prompt,
             options: res.ss_pending_options || {}
           }).catch(() => {});
-        }, 600);
+        }, 500);
       }
     });
   }
 });
 
-// Step 1 in MAIN world: Focus input box, clear any old text, and return its center coordinates
-async function focusAndPrepareInputInMainWorld(tabId) {
+// Click "+ New project" on flow.google.com in MAIN world + via Chrome Debugger hardware mouse click
+async function clickNewProjectInMainWorldAndHardware(tabId) {
+  let coords = null;
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId },
@@ -929,45 +1058,187 @@ async function focusAndPrepareInputInMainWorld(tabId) {
           }
           return arr;
         }
-        const candidates = queryDeep('textarea, div[contenteditable="true"], [role="textbox"], div[data-slate-editor="true"], div[data-lexical-editor="true"], .ProseMirror, input[type="text"]').filter((el) => {
-          if (el.id && el.id.startsWith('ss-hud')) return false;
+
+        let targetEl = null;
+        const buttons = queryDeep('button, a, [role="button"]');
+        for (const btn of buttons) {
+          if (!btn || (btn.id && btn.id.startsWith('ss-hud'))) continue;
+          const txt = ((btn.innerText || btn.textContent || '') + ' ' + (btn.getAttribute('aria-label') || '')).replace(/\\s+/g, ' ').trim().toLowerCase();
+          if (
+            txt.includes('new project') ||
+            txt.includes('create project') ||
+            txt.includes('start project') ||
+            txt.includes('start creating') ||
+            txt.includes('create with flow') ||
+            txt.includes('new flow')
+          ) {
+            const r = btn.getBoundingClientRect();
+            const s = window.getComputedStyle(btn);
+            if (r.width > 36 && r.height > 20 && s.display !== 'none' && s.visibility !== 'hidden') {
+              targetEl = btn;
+              break;
+            }
+          }
+        }
+
+        if (!targetEl) {
+          const divs = queryDeep('div, span');
+          for (const el of divs) {
+            if (!el || (el.id && el.id.startsWith('ss-hud'))) continue;
+            const txt = (el.innerText || el.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+            if (txt === 'new project' || txt === '+ new project' || txt === 'add new project') {
+              const r = el.getBoundingClientRect();
+              const s = window.getComputedStyle(el);
+              if (r.width >= 50 && r.width <= 450 && r.height >= 24 && r.height <= 200 && s.display !== 'none' && s.visibility !== 'hidden') {
+                targetEl = (el.closest && el.closest('button, a, [role="button"]')) || el;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!targetEl) return { found: false };
+
+        targetEl.scrollIntoView({ block: 'center', inline: 'center' });
+        const rect = targetEl.getBoundingClientRect();
+        const x = Math.round(rect.left + rect.width / 2);
+        const y = Math.round(rect.top + rect.height / 2);
+
+        const opts = { bubbles: true, cancelable: true, composed: true, view: window, clientX: x, clientY: y, button: 0, buttons: 1 };
+        targetEl.dispatchEvent(new PointerEvent('pointerdown', opts));
+        targetEl.dispatchEvent(new MouseEvent('mousedown', opts));
+        targetEl.dispatchEvent(new PointerEvent('pointerup', opts));
+        targetEl.dispatchEvent(new MouseEvent('mouseup', opts));
+        targetEl.dispatchEvent(new MouseEvent('click', opts));
+        if (typeof targetEl.click === 'function') targetEl.click();
+        if (targetEl.parentElement && typeof targetEl.parentElement.click === 'function') {
+          targetEl.parentElement.click();
+        }
+
+        return { found: true, x, y };
+      }
+    });
+    coords = (results && results[0] && results[0].result) || null;
+  } catch (e) {}
+
+  if (coords && coords.found && coords.x && coords.y) {
+    const target = { tabId };
+    let attached = false;
+    try {
+      await chrome.debugger.attach(target, '1.3');
+      attached = true;
+    } catch (e) {
+      attached = true;
+    }
+    try {
+      await new Promise((r) => setTimeout(r, 150));
+      await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: coords.x,
+        y: coords.y
+      });
+      await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
+        type: 'mousePressed',
+        x: coords.x,
+        y: coords.y,
+        button: 'left',
+        clickCount: 1
+      });
+      await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
+        type: 'mouseReleased',
+        x: coords.x,
+        y: coords.y,
+        button: 'left',
+        clickCount: 1
+      });
+    } catch (e) {} finally {
+      if (attached) {
+        setTimeout(() => {
+          chrome.debugger.detach(target).catch(() => {});
+        }, 600);
+      }
+    }
+  }
+}
+
+// Step 1 in MAIN world: Find the bottom-right prompt composer box (ignoring top search bar y < 90), save window.__ssFlowPromptEl, focus it
+async function focusAndPrepareInputInMainWorld(tabId, promptText) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      args: [promptText || ''],
+      func: (targetPrompt) => {
+        const hud = document.getElementById('ss-smart-flow-hud');
+        if (hud) hud.style.pointerEvents = 'none';
+
+        function queryDeep(selector, root = document) {
+          const arr = Array.from(root.querySelectorAll(selector));
+          for (const el of root.querySelectorAll('*')) {
+            if (el.shadowRoot) arr.push(...queryDeep(selector, el.shadowRoot));
+          }
+          return arr;
+        }
+        const candidates = queryDeep(
+          'textarea, [contenteditable="true"], [contenteditable="plaintext-only"], [contenteditable=""], [role="textbox"], div[data-slate-editor="true"], div[data-lexical-editor="true"], .ProseMirror, input[type="text"], input:not([type])'
+        ).filter((el) => {
+          if (!el || (el.id && el.id.startsWith('ss-hud'))) return false;
+          if (el.closest && el.closest('#ss-smart-flow-hud')) return false;
           const r = el.getBoundingClientRect();
           const s = window.getComputedStyle(el);
-          return r.width > 120 && r.height > 18 && s.display !== 'none' && s.visibility !== 'hidden';
+          // Strictly ignore top search bar & top header bar (r.top < 90)!
+          if (r.top < 90 || r.width < 140 || r.height < 18 || s.display === 'none' || s.visibility === 'hidden') return false;
+          const hint = ((el.getAttribute('placeholder') || '') + ' ' + (el.getAttribute('aria-label') || '') + ' ' + (el.value || '')).toLowerCase();
+          if (hint.includes('search')) return false;
+          return true;
         });
+
         candidates.sort((a, b) => {
-          const ah = ((a.getAttribute('placeholder') || '') + ' ' + (a.getAttribute('aria-label') || '')).toLowerCase();
-          const bh = ((b.getAttribute('placeholder') || '') + ' ' + (b.getAttribute('aria-label') || '')).toLowerCase();
-          const as = (ah.includes('prompt') || ah.includes('describe') || ah.includes('generate') || ah.includes('create') || ah.includes('ask') ? 500000 : 0) + a.getBoundingClientRect().width * a.getBoundingClientRect().height;
-          const bs = (bh.includes('prompt') || bh.includes('describe') || bh.includes('generate') || bh.includes('create') || bh.includes('ask') ? 500000 : 0) + b.getBoundingClientRect().width * b.getBoundingClientRect().height;
+          const ah = ((a.getAttribute('placeholder') || '') + ' ' + (a.getAttribute('aria-label') || '') + ' ' + (a.getAttribute('data-placeholder') || '')).toLowerCase();
+          const bh = ((b.getAttribute('placeholder') || '') + ' ' + (b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('data-placeholder') || '')).toLowerCase();
+          const aTag = (a.tagName === 'TEXTAREA' || a.getAttribute('contenteditable') !== null ? 300000 : 0);
+          const bTag = (b.tagName === 'TEXTAREA' || b.getAttribute('contenteditable') !== null ? 300000 : 0);
+          const as = (ah.includes('prompt') || ah.includes('describe') || ah.includes('generate') || ah.includes('create') || ah.includes('scene') || ah.includes('imagine') || ah.includes('ask') || ah.includes('type') ? 600000 : 0) + aTag + a.getBoundingClientRect().top * 200 + a.getBoundingClientRect().width * a.getBoundingClientRect().height;
+          const bs = (bh.includes('prompt') || bh.includes('describe') || bh.includes('generate') || bh.includes('create') || bh.includes('scene') || bh.includes('imagine') || bh.includes('ask') || bh.includes('type') ? 600000 : 0) + bTag + b.getBoundingClientRect().top * 200 + b.getBoundingClientRect().width * b.getBoundingClientRect().height;
           return bs - as;
         });
 
         const inputEl = candidates[0];
         if (!inputEl) return { foundInput: false };
 
+        // Save reference on window so subsequent steps NEVER lose the prompt element!
+        window.__ssFlowPromptEl = inputEl;
+
         inputEl.scrollIntoView({ block: 'center', inline: 'center' });
         inputEl.focus();
         inputEl.click();
 
-        // Select existing text so hardware typing replaces it cleanly
-        if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
-          inputEl.select();
-        } else {
-          const sel = window.getSelection();
-          if (sel) {
-            const range = document.createRange();
-            range.selectNodeContents(inputEl);
-            sel.removeAllRanges();
-            sel.addRange(range);
+        const existingVal = ((inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT')
+          ? (inputEl.value || '')
+          : (inputEl.innerText || inputEl.textContent || '')).trim();
+
+        const alreadyHasPrompt = targetPrompt && existingVal.includes(targetPrompt.slice(0, Math.min(25, targetPrompt.length)));
+
+        if (!alreadyHasPrompt) {
+          if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
+            inputEl.select();
+          } else {
+            const sel = window.getSelection();
+            if (sel) {
+              const range = document.createRange();
+              range.selectNodeContents(inputEl);
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
           }
         }
 
         const rect = inputEl.getBoundingClientRect();
         return {
           foundInput: true,
+          alreadyHasPrompt: Boolean(alreadyHasPrompt),
           inputX: Math.round(rect.left + rect.width / 2),
-          inputY: Math.round(rect.top + rect.height / 2)
+          inputY: Math.round(rect.top + Math.min(40, rect.height / 2))
         };
       }
     });
@@ -977,14 +1248,50 @@ async function focusAndPrepareInputInMainWorld(tabId) {
   }
 }
 
-// Step 2 in MAIN world: Ensure prompt text is present (fallback if debugger was blocked) and locate + click the Generate button!
-async function verifyTextAndFindGenerateButtonInMainWorld(tabId, promptText) {
+// Step 2 in MAIN world: ALWAYS sync React/Lit/Wiz framework state on window.__ssFlowPromptEl
+async function syncFrameworkStateInMainWorld(tabId, promptText) {
   try {
-    const results = await chrome.scripting.executeScript({
+    await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
       args: [promptText],
       func: (textToInsert) => {
+        const inputEl = window.__ssFlowPromptEl;
+        if (!inputEl) return;
+
+        inputEl.focus();
+
+        if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
+          const tracker = inputEl._valueTracker;
+          if (tracker) tracker.setValue('');
+          const proto = inputEl.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+          const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+          if (setter) setter.call(inputEl, textToInsert);
+          else inputEl.value = textToInsert;
+          inputEl.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, composed: true, inputType: 'insertText', data: textToInsert }));
+          inputEl.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: textToInsert }));
+          inputEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+        } else {
+          const currentText = (inputEl.innerText || inputEl.textContent || '').trim();
+          if (currentText.length < Math.min(6, textToInsert.length)) {
+            document.execCommand('selectAll', false, null);
+            document.execCommand('insertText', false, textToInsert);
+          }
+          inputEl.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: textToInsert }));
+          inputEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+        }
+      }
+    });
+  } catch (e) {}
+}
+
+// Step 3 in MAIN world: Locate AND click the Bottom-Right White Arrow Submit Button (→) below inRect.bottom!
+async function locateAndClickGenerateButtonInMainWorld(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
         function queryDeep(selector, root = document) {
           const arr = Array.from(root.querySelectorAll(selector));
           for (const el of root.querySelectorAll('*')) {
@@ -992,74 +1299,72 @@ async function verifyTextAndFindGenerateButtonInMainWorld(tabId, promptText) {
           }
           return arr;
         }
-        const candidates = queryDeep('textarea, div[contenteditable="true"], [role="textbox"], div[data-slate-editor="true"], div[data-lexical-editor="true"], .ProseMirror, input[type="text"]').filter((el) => {
-          if (el.id && el.id.startsWith('ss-hud')) return false;
-          const r = el.getBoundingClientRect();
-          const s = window.getComputedStyle(el);
-          return r.width > 120 && r.height > 18 && s.display !== 'none' && s.visibility !== 'hidden';
-        });
-        const inputEl = candidates[0];
+
+        const inputEl = window.__ssFlowPromptEl;
         if (!inputEl) return { foundBtn: false };
 
-        const currentText = (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT')
-          ? (inputEl.value || '').trim()
-          : (inputEl.innerText || inputEl.textContent || '').trim();
-
-        // Fallback paste if hardware typing didn't populate the field
-        if (currentText.length < Math.min(6, textToInsert.length)) {
-          inputEl.focus();
-          if (inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT') {
-            const tracker = inputEl._valueTracker;
-            if (tracker) tracker.setValue('');
-            const proto = inputEl.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
-            const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-            if (setter) setter.call(inputEl, textToInsert);
-            else inputEl.value = textToInsert;
-            inputEl.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: textToInsert }));
-            inputEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
-          } else {
-            const dt = new DataTransfer();
-            dt.setData('text/plain', textToInsert);
-            inputEl.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, composed: true, inputType: 'insertFromPaste', data: textToInsert }));
-            inputEl.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, composed: true, clipboardData: dt }));
-            if ((inputEl.innerText || '').trim().length < 5) {
-              document.execCommand('selectAll', false, null);
-              document.execCommand('insertText', false, textToInsert);
-            }
-          }
-        }
-
         const inRect = inputEl.getBoundingClientRect();
-        const allBtns = queryDeep('button, [role="button"]').filter((btn) => {
+        const allBtns = queryDeep('button, [role="button"], md-filled-icon-button, md-icon-button, mwc-icon-button').filter((btn) => {
           if (!btn || (btn.id && btn.id.startsWith('ss-hud'))) return false;
+          if (btn.closest && btn.closest('#ss-smart-flow-hud')) return false;
           const r = btn.getBoundingClientRect();
           const s = window.getComputedStyle(btn);
-          return r.width >= 22 && r.height >= 22 && s.display !== 'none' && s.visibility !== 'hidden';
+          return r.width >= 18 && r.height >= 18 && s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity) > 0.05;
         });
 
         let bestBtn = null;
-        let bestScore = -999;
+        let bestScore = -9999;
+        let bestLabel = '';
 
         for (const btn of allBtns) {
           const r = btn.getBoundingClientRect();
-          const rawText = (btn.innerText || '').trim().toLowerCase();
-          const aria = ((btn.getAttribute('aria-label') || '') + ' ' + (btn.getAttribute('title') || '') + ' ' + (btn.getAttribute('data-testid') || '')).toLowerCase();
+          const rawText = (btn.innerText || btn.textContent || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+          const aria = (
+            (btn.getAttribute('aria-label') || '') + ' ' +
+            (btn.getAttribute('title') || '') + ' ' +
+            (btn.getAttribute('data-tooltip') || '') + ' ' +
+            (btn.getAttribute('data-testid') || '')
+          ).toLowerCase();
           const html = (btn.innerHTML || '').toLowerCase();
-          const combined = rawText + ' ' + aria;
+          const combined = (rawText + ' ' + aria).trim();
 
+          // CRITICAL: Never click the top-right "X" clear button inside the prompt box!
           if (
-            combined.includes('setting') ||
-            combined.includes('tune') ||
-            combined.includes('aspect') ||
-            combined.includes('ratio') ||
+            rawText === '×' ||
+            rawText === '✕' ||
+            rawText === '✖' ||
+            rawText === 'x' ||
+            rawText === 'close' ||
+            rawText === 'clear' ||
             combined.includes('clear') ||
             combined.includes('close') ||
             combined.includes('cancel') ||
             combined.includes('delete') ||
+            combined.includes('remove')
+          ) {
+            continue;
+          }
+
+          // Also skip any button located near the very top edge of the prompt text area (where the "X" clear button sits)
+          if (r.top < inRect.top + 28 && r.bottom < inRect.bottom - 10) {
+            continue;
+          }
+
+          // Skip bottom-left "+" add button and other toolbar icons
+          if (
+            rawText === '+' ||
+            rawText === 'add' ||
+            rawText === 'plus' ||
+            combined.includes('setting') ||
+            combined.includes('tune') ||
+            combined.includes('aspect') ||
+            combined.includes('ratio') ||
             combined.includes('upload') ||
             combined.includes('attach') ||
             combined.includes('expand_more') ||
-            combined.includes('keyboard_arrow_down') ||
+            combined.includes('keyboard_arrow') ||
+            combined.includes('arrow_drop') ||
+            combined.includes('chevron') ||
             combined.includes('more_vert') ||
             combined.includes('more_horiz') ||
             combined.includes('history') ||
@@ -1067,67 +1372,89 @@ async function verifyTextAndFindGenerateButtonInMainWorld(tabId, promptText) {
             combined.includes('feedback') ||
             combined.includes('help') ||
             combined.includes('menu') ||
-            rawText === 'add' ||
-            rawText === 'image' ||
-            rawText === 'close'
+            combined.includes('upgrade') ||
+            combined.includes('flow music') ||
+            combined.includes('flow tv') ||
+            combined.includes('new project') ||
+            combined.includes('learn about') ||
+            combined.includes('edit an image') ||
+            combined.includes('create a few')
           ) {
             continue;
           }
 
-          let score = 0;
-          if (btn.getAttribute('type') === 'submit') score += 120;
+          // Must be within the prompt composer card horizontally AND near/below the prompt text vertically!
+          const inHorizBounds = r.left >= inRect.left + inRect.width * 0.4 && r.right <= inRect.right + 140;
+          const distFromBottom = Math.abs((r.top + r.height / 2) - inRect.bottom);
+          const inVertBounds = r.top >= inRect.top + 25 && r.top <= inRect.bottom + 260;
+
+          if (!inHorizBounds || !inVertBounds) {
+            continue;
+          }
+
+          let score = 150;
+
+          // Strong bonus for being near the bottom toolbar row of the prompt card
+          if (distFromBottom < 140) {
+            score += 150;
+          }
+
+          // Strong bonus for rightmost button in the bottom toolbar (the white arrow → button is ALWAYS farthest right!)
+          score += Math.round((r.right - inRect.left) * 0.8);
+
+          // Strong bonus for solid opaque background (the white circle → button has a solid white background, unlike the transparent icons next to it!)
+          const bg = window.getComputedStyle(btn).backgroundColor;
+          if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+            score += 220;
+          }
+
           if (
             combined.includes('generate') ||
             combined.includes('create') ||
             combined.includes('submit') ||
             combined.includes('send') ||
-            combined.includes('run')
-          ) {
-            score += 150;
-          }
-          if (
-            rawText === 'arrow_upward' ||
-            rawText === 'arrow_forward' ||
-            rawText === 'north' ||
-            rawText === 'send' ||
-            rawText === 'auto_awesome' ||
-            rawText === 'spark' ||
-            rawText === 'play_arrow' ||
-            html.includes('arrow_upward') ||
+            combined.includes('run') ||
+            rawText.includes('arrow_forward') ||
+            rawText.includes('arrow_upward') ||
+            rawText.includes('east') ||
+            rawText.includes('north') ||
+            rawText.includes('send') ||
             html.includes('arrow_forward') ||
-            html.includes('auto_awesome') ||
+            html.includes('arrow_upward') ||
             html.includes('send')
           ) {
-            score += 140;
+            score += 260;
           }
 
-          const vertDist = Math.abs((r.top + r.height / 2) - (inRect.top + inRect.height / 2));
-          const horizDist = r.left - inRect.left;
-          if (vertDist < 150 && horizDist >= 0 && horizDist <= inRect.width + 200) {
-            score += 65;
-            if (r.left >= inRect.left + inRect.width * 0.5) score += 45;
+          if (btn.getAttribute('type') === 'submit') score += 200;
+          if (html.includes('<svg')) score += 40;
+
+          const isDisabled = btn.disabled || btn.getAttribute('aria-disabled') === 'true' || btn.hasAttribute('disabled');
+          if (!isDisabled) {
+            score += 100;
           } else {
-            score -= 50;
+            score -= 100;
           }
-
-          if (html.includes('<svg')) score += 20;
-          const bg = window.getComputedStyle(btn).backgroundColor;
-          if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') score += 15;
 
           if (score > bestScore) {
             bestScore = score;
             bestBtn = btn;
+            bestLabel = (rawText || aria || '→').slice(0, 16);
           }
         }
 
-        if (bestBtn && bestScore >= 40) {
+        if (bestBtn) {
           try {
             bestBtn.removeAttribute('disabled');
             bestBtn.setAttribute('aria-disabled', 'false');
+            bestBtn.style.outline = '3px solid #22C55E';
           } catch (e) {}
+
           const br = bestBtn.getBoundingClientRect();
           const clientX = Math.round(br.left + br.width / 2);
           const clientY = Math.round(br.top + br.height / 2);
+
+          // Also fire MAIN world click events directly on bestBtn!
           const opts = { bubbles: true, cancelable: true, composed: true, view: window, clientX, clientY, button: 0, buttons: 1 };
           bestBtn.dispatchEvent(new PointerEvent('pointerdown', opts));
           bestBtn.dispatchEvent(new MouseEvent('mousedown', opts));
@@ -1135,7 +1462,15 @@ async function verifyTextAndFindGenerateButtonInMainWorld(tabId, promptText) {
           bestBtn.dispatchEvent(new MouseEvent('mouseup', opts));
           bestBtn.dispatchEvent(new MouseEvent('click', opts));
           if (typeof bestBtn.click === 'function') bestBtn.click();
-          return { foundBtn: true, btnX: clientX, btnY: clientY };
+
+          window.__ssFlowSubmitBtn = bestBtn;
+
+          return {
+            foundBtn: true,
+            btnX: clientX,
+            btnY: clientY,
+            btnLabel: bestLabel || '→'
+          };
         }
 
         return { foundBtn: false };
@@ -1147,7 +1482,41 @@ async function verifyTextAndFindGenerateButtonInMainWorld(tabId, promptText) {
   }
 }
 
-// Master Hardware Paste + Click Engine via chrome.debugger
+// Step 4 in MAIN world: Check if prompt is still in window.__ssFlowPromptEl and restore HUD pointer-events
+async function checkRemainingPromptInMainWorld(tabId) {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        const hud = document.getElementById('ss-smart-flow-hud');
+        if (hud) hud.style.pointerEvents = 'auto';
+
+        const inputEl = window.__ssFlowPromptEl;
+        if (!inputEl) return { stillHasText: false };
+
+        const remainingText = ((inputEl.tagName === 'TEXTAREA' || inputEl.tagName === 'INPUT')
+          ? (inputEl.value || '')
+          : (inputEl.innerText || inputEl.textContent || '')).trim();
+
+        if (remainingText.length > 5) {
+          inputEl.focus();
+          const enterOpts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true };
+          inputEl.dispatchEvent(new KeyboardEvent('keydown', enterOpts));
+          inputEl.dispatchEvent(new KeyboardEvent('keypress', enterOpts));
+          inputEl.dispatchEvent(new KeyboardEvent('keyup', enterOpts));
+          return { stillHasText: true };
+        }
+        return { stillHasText: false };
+      }
+    });
+    return (results && results[0] && results[0].result) || { stillHasText: false };
+  } catch (e) {
+    return { stillHasText: false };
+  }
+}
+
+// Master Hardware Paste + State Sync + Bottom-Right White Arrow Click Engine via chrome.debugger
 async function runTrustedDebuggerSubmit(tabId, promptText) {
   const target = { tabId };
   let attached = false;
@@ -1158,15 +1527,15 @@ async function runTrustedDebuggerSubmit(tabId, promptText) {
     attached = true;
   }
 
+  let btnLabel = '';
   try {
-    // 1. Wait 300ms so any debugger top-bar layout shift finishes BEFORE measuring coordinates
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 200));
 
-    // 2. Focus and select existing text in MAIN world, and get fresh (inputX, inputY)
-    const prep = await focusAndPrepareInputInMainWorld(tabId);
+    // 1. Focus bottom-right prompt box (ignoring top search bar y < 90) and save window.__ssFlowPromptEl
+    const prep = await focusAndPrepareInputInMainWorld(tabId, promptText);
 
     if (prep && prep.foundInput && prep.inputX && prep.inputY) {
-      // 3. Hardware mouse click directly inside the prompt box
+      // 2. Hardware click inside the prompt box
       await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
         type: 'mouseMoved',
         x: prep.inputX,
@@ -1186,24 +1555,80 @@ async function runTrustedDebuggerSubmit(tabId, promptText) {
         button: 'left',
         clickCount: 1
       });
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 120));
 
-      // 4. Insert the ENTIRE promptText via Chrome's native C++ Input.insertText command!
-      await chrome.debugger.sendCommand(target, 'Input.insertText', { text: promptText });
-      await new Promise((r) => setTimeout(r, 700));
+      // 3. Hardware insert full prompt text if not already present
+      if (!prep.alreadyHasPrompt) {
+        await chrome.debugger.sendCommand(target, 'Input.insertText', { text: promptText });
+        await new Promise((r) => setTimeout(r, 120));
+      }
+
+      // 4. Fire a genuine hardware Space + Backspace key cycle so reactive listeners wake up and enable the white → button!
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+        type: 'rawKeyDown',
+        windowsVirtualKeyCode: 32,
+        nativeVirtualKeyCode: 32,
+        key: ' ',
+        code: 'Space',
+        text: ' ',
+        unmodifiedText: ' '
+      });
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+        type: 'char',
+        windowsVirtualKeyCode: 32,
+        nativeVirtualKeyCode: 32,
+        key: ' ',
+        code: 'Space',
+        text: ' ',
+        unmodifiedText: ' '
+      });
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        windowsVirtualKeyCode: 32,
+        nativeVirtualKeyCode: 32,
+        key: ' ',
+        code: 'Space'
+      });
+      await new Promise((r) => setTimeout(r, 60));
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+        type: 'rawKeyDown',
+        windowsVirtualKeyCode: 8,
+        nativeVirtualKeyCode: 8,
+        key: 'Backspace',
+        code: 'Backspace'
+      });
+      await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        windowsVirtualKeyCode: 8,
+        nativeVirtualKeyCode: 8,
+        key: 'Backspace',
+        code: 'Backspace'
+      });
+      await new Promise((r) => setTimeout(r, 150));
     }
 
-    // 5. Verify text in MAIN world and find + click the now-enabled Generate button
-    const btnInfo = await verifyTextAndFindGenerateButtonInMainWorld(tabId, promptText);
+    // 5. Sync React/Lit/Wiz framework state in MAIN world
+    await syncFrameworkStateInMainWorld(tabId, promptText);
 
-    // 6. Hardware click on the Generate button coordinates first!
-    if (btnInfo && btnInfo.foundBtn && btnInfo.btnX && btnInfo.btnY) {
-      await new Promise((r) => setTimeout(r, 150));
+    // 6. Wait 500ms for the bottom-right white arrow (→) button to be 100% enabled
+    await new Promise((r) => setTimeout(r, 500));
+
+    // 7. Locate the exact bottom-right white arrow (→) button below inRect.bottom and click it in MAIN world
+    const btnInfo = await locateAndClickGenerateButtonInMainWorld(tabId);
+    if (btnInfo && btnInfo.btnLabel) {
+      btnLabel = btnInfo.btnLabel;
+    }
+
+    // 8. Check if MAIN world click already submitted the prompt; only fire C++ Hardware Mouse Click if text is STILL in input box (prevents double click & double download!)
+    await new Promise((r) => setTimeout(r, 320));
+    const afterMainClick = await checkRemainingPromptInMainWorld(tabId);
+    if (afterMainClick && afterMainClick.stillHasText && btnInfo && btnInfo.foundBtn && btnInfo.btnX && btnInfo.btnY) {
       await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
         type: 'mouseMoved',
         x: btnInfo.btnX,
         y: btnInfo.btnY
       });
+      await new Promise((r) => setTimeout(r, 70));
       await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
         type: 'mousePressed',
         x: btnInfo.btnX,
@@ -1211,6 +1636,7 @@ async function runTrustedDebuggerSubmit(tabId, promptText) {
         button: 'left',
         clickCount: 1
       });
+      await new Promise((r) => setTimeout(r, 70));
       await chrome.debugger.sendCommand(target, 'Input.dispatchMouseEvent', {
         type: 'mouseReleased',
         x: btnInfo.btnX,
@@ -1219,29 +1645,11 @@ async function runTrustedDebuggerSubmit(tabId, promptText) {
         clickCount: 1
       });
     }
-
-    // 7. Also fire hardware Enter key 250ms later
-    await new Promise((r) => setTimeout(r, 250));
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-      type: 'rawKeyDown',
-      windowsVirtualKeyCode: 13,
-      nativeVirtualKeyCode: 13,
-      key: 'Enter',
-      code: 'Enter',
-      text: '\\r',
-      unmodifiedText: '\\r'
-    });
-    await chrome.debugger.sendCommand(target, 'Input.dispatchKeyEvent', {
-      type: 'keyUp',
-      windowsVirtualKeyCode: 13,
-      nativeVirtualKeyCode: 13,
-      key: 'Enter',
-      code: 'Enter'
-    });
   } catch (err) {
     console.warn('CDP submit error:', err);
-    // Still run MAIN world fallback even if debugger threw an error
-    await verifyTextAndFindGenerateButtonInMainWorld(tabId, promptText);
+    await syncFrameworkStateInMainWorld(tabId, promptText);
+    await locateAndClickGenerateButtonInMainWorld(tabId);
+    await checkRemainingPromptInMainWorld(tabId);
   } finally {
     if (attached) {
       setTimeout(() => {
@@ -1249,18 +1657,30 @@ async function runTrustedDebuggerSubmit(tabId, promptText) {
       }, 1000);
     }
   }
+  return { ok: true, btnLabel };
 }
 
+let lastDownloadTimestamp = 0;
+let lastDownloadedPromptKey = '';
+const downloadedUrlsHistory = new Set();
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'CDP_TRUSTED_FLOW_SUBMIT' && sender.tab && sender.tab.id) {
-    runTrustedDebuggerSubmit(sender.tab.id, message.prompt || '').then(() => {
+  if (message.type === 'CDP_CLICK_NEW_PROJECT' && sender.tab && sender.tab.id) {
+    clickNewProjectInMainWorldAndHardware(sender.tab.id).then(() => {
       sendResponse({ ok: true });
     });
     return true;
   }
 
+  if (message.type === 'CDP_TRUSTED_FLOW_SUBMIT' && sender.tab && sender.tab.id) {
+    runTrustedDebuggerSubmit(sender.tab.id, message.prompt || '').then((res) => {
+      sendResponse(res || { ok: true });
+    });
+    return true;
+  }
+
   if (message.type === 'DISPATCH_TO_FLOW') {
-    const baseTargetUrl = message.targetUrl || 'https://labs.google/fx/tools/flow';
+    const baseTargetUrl = message.targetUrl || 'https://flow.google.com/';
     const prompt = message.prompt || '';
     const options = message.options || {};
     const openedByAnchor = Boolean(message.openedByAnchor);
@@ -1280,7 +1700,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.tabs.query({}, (tabs) => {
       const existingTab = tabs.find((t) => {
         const u = (t.url || '') + ' ' + (t.pendingUrl || '');
-        return u.includes('labs.google') || u.includes('/fx/tools/');
+        return isFlowUrl(u);
       });
 
       if (existingTab && existingTab.id) {
@@ -1306,11 +1726,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'DOWNLOAD_FLOW_RESULT' && message.url) {
+    const now = Date.now();
+    const promptKey = message.promptKey || '';
+
+    // STRICT SINGLE-DOWNLOAD LOCK: Never download 2 times for the same image or same prompt!
+    if (
+      downloadedUrlsHistory.has(message.url) ||
+      (promptKey && promptKey === lastDownloadedPromptKey && now - lastDownloadTimestamp < 25000) ||
+      now - lastDownloadTimestamp < 4500
+    ) {
+      sendResponse({ downloaded: false, duplicate: true });
+      return true;
+    }
+
+    lastDownloadTimestamp = now;
+    if (promptKey) lastDownloadedPromptKey = promptKey;
+    downloadedUrlsHistory.add(message.url);
+
     chrome.downloads.download({
       url: message.url,
-      filename: message.filename || ('ss-smart-flow-' + Date.now() + '.png'),
+      filename: message.filename || ('ss-smart-flow-' + now + '.png'),
       saveAs: false
     });
+
+    // Notify all tabs so SS SMART STUDIO immediately advances to the next prompt in its 1000-image queue!
+    chrome.tabs.query({}, (tabs) => {
+      for (const t of tabs) {
+        if (t.id) {
+          chrome.tabs.sendMessage(t.id, {
+            type: 'FLOW_TASK_COMPLETED',
+            prompt: promptKey,
+            imageUrl: message.url
+          }).catch(() => {});
+        }
+      }
+    });
+
     sendResponse({ downloaded: true });
     return true;
   }
@@ -1334,7 +1785,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       const buffer = await zip.generateAsync({ type: 'nodebuffer' });
       res.setHeader('Content-Type', 'application/zip');
-      res.setHeader('Content-Disposition', 'attachment; filename="SS-SMART-FLOW-EXTENSION-v4.1.zip"');
+      res.setHeader('Content-Disposition', 'attachment; filename="SS-SMART-FLOW-EXTENSION-v4.5.zip"');
       res.send(buffer);
     } catch (err: any) {
       res.status(500).send('Failed to generate extension ZIP.');

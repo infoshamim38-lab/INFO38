@@ -19,6 +19,7 @@ export type ImagePromptMode =
   | 'Thumbnail Prompt';
 
 export type IconVariant =
+  | 'COLOR VECTOR'
   | 'VARIANT 01'
   | 'VARIANT 02'
   | 'VARIANT 03';
@@ -72,11 +73,26 @@ export interface ExtractedIconItem {
   aspectRatio: number;
   croppedDataUrl: string;
   svgContent: string;
+  originalSvgContent?: string;
+  palette?: string[];
+  isVectorized?: boolean;
+  colorSwapped?: boolean;
+  colorUnified?: boolean;
   variant: IconVariant;
   status: 'Ready' | 'Processing' | 'Failed';
   errorMessage?: string;
   validation: SVGValidationReport;
 }
+
+export type PresentationIconShape =
+  | 'none'
+  | 'rounded-square'
+  | 'circle'
+  | 'squircle'
+  | 'hexagon'
+  | 'shield'
+  | 'dashed-box'
+  | 'soft-shadow';
 
 export interface PresentationSettings {
   iconsPerPresentation: number;
@@ -93,6 +109,25 @@ export interface PresentationSettings {
   preserveAspectRatio: boolean;
   preventCropping: boolean;
   preventOverlap: boolean;
+  // Custom Presentation Designer options (Size, Shape, Text)
+  iconShape?: PresentationIconShape;
+  shapeFillColor?: string;
+  shapeStrokeColor?: string;
+  shapeStrokeWidth?: number;
+  canvasBgColor?: string;
+  showHeader?: boolean;
+  headerLayout?: 'left' | 'center' | 'split-banner';
+  titleText?: string;
+  subtitleText?: string;
+  badgeText?: string;
+  footerText?: string;
+  showFooter?: boolean;
+  titleFontSize?: number;
+  titleColor?: string;
+  subtitleColor?: string;
+  accentColor?: string;
+  iconLabelMode?: 'none' | 'hash' | 'number' | 'name';
+  iconLabelColor?: string;
 }
 
 export interface PlacedPresentationIcon {

@@ -40,10 +40,10 @@ export const ExtensionModule: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-subtle)] pb-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            SS SMART FLOW (v4.1)
+            SS SMART FLOW (v4.4)
           </h1>
           <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-            Auto-Paste &amp; Hardware Auto-Generate Chrome Extension bridge connecting SS SMART STUDIO with Google Flow (`labs.google/fx/tools/flow`).
+            Auto-Paste &amp; Bottom-Right White Arrow Auto-Click Chrome Extension bridge connecting SS SMART STUDIO with Google Flow (`flow.google.com` &amp; `labs.google/fx/tools/flow`).
           </p>
         </div>
 
@@ -54,14 +54,14 @@ export const ExtensionModule: React.FC = () => {
             className="px-4 py-2 text-xs font-semibold rounded bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 flex items-center gap-1.5 whitespace-nowrap"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>1-Click Folder Creator v4.1 (.BAT)</span>
+            <span>1-Click Folder Creator v4.4 (.BAT)</span>
           </button>
           <button
             type="button"
             onClick={() => void exportSmartFlowExtensionPackage()}
             className="px-3.5 py-2 text-xs font-semibold rounded bg-[var(--bg-elevated)] text-[var(--accent-primary)] border border-[var(--accent-primary)]/40 hover:bg-[var(--accent-soft)] whitespace-nowrap"
           >
-            Download Extension v4.1 (.ZIP)
+            Download Extension v4.4 (.ZIP)
           </button>
         </div>
       </div>
@@ -71,7 +71,7 @@ export const ExtensionModule: React.FC = () => {
         <div className="p-6 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-5">
           <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
             <span className="text-sm font-bold tracking-wide text-[var(--text-primary)]">
-              SS SMART FLOW
+              SS SMART FLOW v4.4
             </span>
             <span
               className={`text-xs font-mono font-semibold ${
@@ -147,20 +147,20 @@ export const ExtensionModule: React.FC = () => {
         {/* Extension Installation & Bridge Notes */}
         <div className="p-6 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-4 text-xs text-[var(--text-secondary)]">
           <div className="text-sm font-semibold text-[var(--text-primary)]">
-            How to Install or Update SS SMART FLOW v4.0
+            How to Install or Update SS SMART FLOW v4.4
           </div>
           <ol className="list-decimal list-inside space-y-2 leading-relaxed">
             <li>
-              Click <strong>Download Extension v4.0 (.ZIP)</strong> or <strong>1-Click Folder Creator v4.0 (.BAT)</strong> above.
+              Click <strong>Download Extension v4.4 (.ZIP)</strong> or <strong>1-Click Folder Creator v4.4 (.BAT)</strong> above.
             </li>
             <li>
               Open <code className="text-[var(--text-primary)]">chrome://extensions</code> in Google Chrome and enable <strong>Developer mode</strong>.
             </li>
             <li>
-              Click <strong>Load unpacked</strong> and select the <code className="text-[var(--text-primary)]">SS-SMART-FLOW-v4.0</code> folder (and remove any older v2.5/v3.5 version, or click <strong>Reload ↻</strong>).
+              Remove any older version, then click <strong>Load unpacked</strong> and select the <code className="text-[var(--text-primary)]">SS-SMART-FLOW-v4.4</code> folder.
             </li>
             <li>
-              Refresh this page once—now clicking <strong>Send to Flow</strong> will open Google Flow, automatically paste the prompt into the editor, and click the Generate button!
+              Refresh this page once—now clicking <strong>Send to Flow</strong> will open <code className="text-[var(--text-primary)]">flow.google.com</code>, automatically click <strong>+ New project</strong>, paste &amp; sync the prompt, and click the bottom-right white arrow button!
             </li>
           </ol>
         </div>

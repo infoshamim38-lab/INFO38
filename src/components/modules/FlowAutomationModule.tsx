@@ -19,6 +19,7 @@ import {
 } from '../../core/export/ExportEngine';
 
 const FLOW_URLS = [
+  { label: 'Google Flow (flow.google.com)', value: 'https://flow.google.com/' },
   { label: 'Google Labs Flow (labs.google/fx/tools/flow)', value: 'https://labs.google/fx/tools/flow' },
   { label: 'Google Labs ImageFX (labs.google/fx/tools/image-fx)', value: 'https://labs.google/fx/tools/image-fx' },
   { label: 'Google Labs Whisk (labs.google/fx/tools/whisk)', value: 'https://labs.google/fx/tools/whisk' },
@@ -65,10 +66,10 @@ export const FlowAutomationModule: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-subtle)] pb-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            FLOW AUTOMATION (CHROME EXTENSION BRIDGE v4.1)
+            FLOW AUTOMATION (CHROME EXTENSION BRIDGE v4.4)
           </h1>
           <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-            Architecture: SS SMART STUDIO → FLOW CONTROLLER → SS SMART FLOW EXTENSION (v4.1) → CHROME FLOW TAB → AUTO PASTE &amp; GENERATE.
+            Architecture: SS SMART STUDIO → FLOW CONTROLLER → SS SMART FLOW EXTENSION (v4.4) → flow.google.com (+ New Project → Exact Bottom-Right White Arrow Click).
           </p>
         </div>
 
@@ -79,7 +80,7 @@ export const FlowAutomationModule: React.FC = () => {
             className="px-3 py-1.5 text-xs font-semibold rounded bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>1-Click Folder Creator v4.1 (.BAT)</span>
+            <span>1-Click Folder Creator v4.4 (.BAT)</span>
           </button>
 
           <button
@@ -88,14 +89,14 @@ export const FlowAutomationModule: React.FC = () => {
             className="px-3 py-1.5 text-xs font-semibold rounded bg-[var(--bg-elevated)] text-[var(--accent-primary)] border border-[var(--accent-primary)]/40 hover:bg-[var(--accent-soft)] flex items-center gap-1.5"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Download v4.1 (.ZIP)</span>
+            <span>Download v4.4 (.ZIP)</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveNav('extension')}
             className={`px-3 py-1.5 text-xs font-semibold rounded border flex items-center gap-1.5 ${
-              extensionConnected
+              extensionConnected && extensionVersion === '4.4.0'
                 ? 'bg-emerald-950/30 text-emerald-400 border-emerald-500/40'
                 : 'bg-amber-950/30 text-amber-300 border-amber-500/40'
             }`}
@@ -103,8 +104,8 @@ export const FlowAutomationModule: React.FC = () => {
             <Puzzle className="w-3.5 h-3.5" />
             <span>
               {extensionConnected
-                ? `● Extension v${extensionVersion || '4.1'} Active`
-                : '⚠️ Extension Not Loaded in Chrome'}
+                ? `● Extension v${extensionVersion || '4.4'} Active`
+                : '⚠️ Extension v4.4 Not Loaded in Chrome'}
             </span>
           </button>
         </div>
@@ -113,19 +114,19 @@ export const FlowAutomationModule: React.FC = () => {
       {/* Live Status & 1-Click Installer Banner */}
       <div
         className={`p-4 rounded-lg border flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs ${
-          extensionConnected && extensionVersion === '4.1.0'
+          extensionConnected && extensionVersion === '4.4.0'
             ? 'border-emerald-500/40 bg-emerald-950/20'
             : 'border-amber-500/50 bg-amber-950/20'
         }`}
       >
         <div className="space-y-1">
           <div className="font-semibold text-[var(--text-primary)]">
-            {extensionConnected && extensionVersion === '4.1.0'
-              ? '✓ SS SMART FLOW v4.1 Active in Chrome — Auto-Paste & Auto-Generate Ready!'
-              : '⚠️ গুরুত্বপূর্ণ: আগের .BAT ফাইলে লাইন-লিমিটের কারণে content.js অসম্পূর্ণ ছিল — নতুন ফিক্সড v4.1 লোড করুন!'}
+            {extensionConnected && extensionVersion === '4.4.0'
+              ? '✓ SS SMART FLOW v4.4 Active in Chrome — Bottom-Right White Arrow Button Auto-Click Ready!'
+              : '⚠️ গুরুত্বপূর্ণ আপডেট (v4.4): উপরের Search বার সংঘর্ষ এবং নিচের সাদা অ্যারো (→) বাটনের পজিশন ফিক্স করা হয়েছে — নতুন v4.4 লোড করুন!'}
           </div>
           <p className="text-[var(--text-secondary)]">
-            1. নিচের <strong>1-Click Folder Creator v4.1 (.BAT)</strong> ডাউনলোড করে ডাবল-ক্লিক করুন (এটি স্বয়ংক্রিয়ভাবে সম্পূর্ণ <code>SS-SMART-FLOW-v4.1</code> ফোল্ডার তৈরি করে ওপেন করবে)। 2. <code className="text-[var(--text-primary)]">chrome://extensions</code>-এ গিয়ে পুরনো এক্সটেনশন <strong>Remove</strong> করে <strong>Load unpacked</strong> দিয়ে নতুন <code>SS-SMART-FLOW-v4.1</code> ফোল্ডারটি সিলেক্ট করুন।
+            1. নিচের <strong>1-Click Folder Creator v4.4 (.BAT)</strong> বা <strong>Download v4.4 ZIP</strong> ডাউনলোড করুন। 2. <code className="text-[var(--text-primary)]">chrome://extensions</code>-এ গিয়ে আগের ভার্সন <strong>Remove</strong> করে <strong>Load unpacked</strong> দিয়ে নতুন <code>SS-SMART-FLOW-v4.4</code> ফোল্ডারটি সিলেক্ট করুন।
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -134,14 +135,14 @@ export const FlowAutomationModule: React.FC = () => {
             onClick={() => void downloadWindowsInstallerBat()}
             className="px-3.5 py-2 rounded font-bold bg-[var(--accent-primary)] text-slate-950 whitespace-nowrap"
           >
-            1-Click Folder Creator v4.1 (.BAT)
+            1-Click Folder Creator v4.4 (.BAT)
           </button>
           <button
             type="button"
             onClick={() => void exportSmartFlowExtensionPackage()}
             className="px-3.5 py-2 rounded font-semibold bg-[var(--bg-surface)] text-[var(--accent-primary)] border border-[var(--accent-primary)]/50 whitespace-nowrap"
           >
-            Download v4.1 ZIP
+            Download v4.4 ZIP
           </button>
           <button
             type="button"

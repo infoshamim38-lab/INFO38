@@ -26,18 +26,61 @@ export function triggerDataUrlDownload(dataUrl: string, filename: string) {
   document.body.removeChild(a);
 }
 
-export function exportSingleSvg(icon: ExtractedIconItem) {
-  downloadTextFile(icon.name, icon.svgContent, 'image/svg+xml;charset=utf-8');
+export function downloadSvgFile(filename: string, svgContent: string) {
+  const finalName = filename.endsWith('.svg') ? filename : `${filename}.svg`;
+  downloadTextFile(finalName, svgContent, 'image/svg+xml;charset=utf-8');
 }
 
-export async function exportIndividualSvgsAsZip(icons: ExtractedIconItem[], zipFilename = 'SS-SMART-STUDIO-INDIVIDUAL-ICONS.zip') {
+export async function downloadPngFromSvg(
+  filename: string,
+  svgContent: string,
+  width = 1024,
+  height = width
+) {
+  const finalName = filename.endsWith('.png') ? filename : `${filename}.png`;
+  const blob = await renderSvgStringToRasterBlob(svgContent, width, height, 'png');
+  triggerBlobDownload(blob, finalName);
+}
+
+export function downloadEpsFromSvg(filename: string, svgContent: string) {
+  const finalName = filename.endsWith('.eps') ? filename : `${filename}.eps`;
+  const epsHeader = `%!PS-Adobe-3.0 EPSF-3.0
+%%BoundingBox: 0 0 2000 2000
+%%Creator: SS SMART STUDIO Vector & Presentation Engine
+%%Title: ${finalName}
+%%EndComments
+% SVG Vector Source Embedded:
+`;
+  const commentedSvg = svgContent
+    .split('\n')
+    .map((line) => `% ${line}`)
+    .join('\n');
+  const epsBody = `${epsHeader}${commentedSvg}\nshowpage\n%%EOF\n`;
+  downloadTextFile(finalName, epsBody, 'application/postscript;charset=utf-8');
+}
+
+export function exportSingleSvg(icon: ExtractedIconItem) {
+  downloadSvgFile(icon.name, icon.svgContent);
+}
+
+export async function exportIndividualSvgsAsZip(
+  icons: ExtractedIconItem[],
+  zipFilename = 'SS-SMART-STUDIO-INDIVIDUAL-ICONS.zip'
+) {
   const zip = new JSZip();
   const folder = zip.folder('Icons');
   icons.forEach((icon) => {
-    folder?.file(icon.name, icon.svgContent);
+    if (icon.svgContent) {
+      const fileName = icon.name.endsWith('.svg') ? icon.name : `${icon.name}.svg`;
+      folder?.file(fileName, icon.svgContent);
+    }
   });
   const blob = await zip.generateAsync({ type: 'blob' });
   triggerBlobDownload(blob, zipFilename);
+}
+
+export async function exportAllVectorsZip(icons: ExtractedIconItem[]) {
+  await exportIndividualSvgsAsZip(icons, 'SS-SMART-STUDIO-ALL-VECTORS.zip');
 }
 
 export function exportPresentationAsSvg(presentation: IconSheetPresentation) {
@@ -106,7 +149,12 @@ export async function exportAllPresentationsAsZip(
     const num = String(p.index).padStart(2, '0');
     folder?.file(`presentation-${num}.svg`, p.svgString);
     try {
-      const pngBlob = await renderSvgStringToRasterBlob(p.svgString, p.canvasWidth, p.canvasHeight, 'png');
+      const pngBlob = await renderSvgStringToRasterBlob(
+        p.svgString,
+        p.canvasWidth,
+        p.canvasHeight,
+        'png'
+      );
       folder?.file(`presentation-${num}.png`, pngBlob);
     } catch {
       // SVG always included
@@ -115,6 +163,42 @@ export async function exportAllPresentationsAsZip(
 
   const blob = await zip.generateAsync({ type: 'blob' });
   triggerBlobDownload(blob, zipFilename);
+}
+
+export async function exportFullStudioBundleZip(
+  icons: ExtractedIconItem[],
+  presentations: IconSheetPresentation[]
+) {
+  const zip = new JSZip();
+  const iconsFolder = zip.folder('Single-Vectors-SVG');
+  const sheetsFolder = zip.folder('Icon-Set-Presentations');
+
+  for (const icon of icons) {
+    if (icon.svgContent) {
+      const name = icon.name.endsWith('.svg') ? icon.name : `${icon.name}.svg`;
+      iconsFolder?.file(name, icon.svgContent);
+    }
+  }
+
+  for (const p of presentations) {
+    const num = String(p.index).padStart(2, '0');
+    const svgStr = p.svgSheetContent || p.svgString;
+    sheetsFolder?.file(`icon-set-presentation-${num}.svg`, svgStr);
+    try {
+      const pngBlob = await renderSvgStringToRasterBlob(
+        svgStr,
+        p.canvasWidth || 2000,
+        p.canvasHeight || 2000,
+        'png'
+      );
+      sheetsFolder?.file(`icon-set-presentation-${num}.png`, pngBlob);
+    } catch {
+      // SVG always included
+    }
+  }
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  triggerBlobDownload(blob, 'SS-SMART-STUDIO-PRESENTATION-AND-VECTORS.zip');
 }
 
 export async function exportSmartFlowExtensionPackage() {
@@ -135,7 +219,7 @@ export async function exportSmartFlowExtensionPackage() {
 
   const a = document.createElement('a');
   a.href = `data:application/zip;base64,${base64Zip}`;
-  a.download = 'SS-SMART-FLOW-EXTENSION-v4.1.zip';
+  a.download = 'SS-SMART-FLOW-EXTENSION-v4.5.zip';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -150,12 +234,11 @@ export async function downloadWindowsInstallerBat() {
     '@echo off',
     'setlocal DisableDelayedExpansion',
     'cd /d "%~dp0"',
-    'if exist "SS-SMART-FLOW-v4.1" rmdir /s /q "SS-SMART-FLOW-v4.1"',
-    'mkdir "SS-SMART-FLOW-v4.1"',
-    'cd "SS-SMART-FLOW-v4.1"',
+    'if exist "SS-SMART-FLOW-v4.5" rmdir /s /q "SS-SMART-FLOW-v4.5"',
+    'mkdir "SS-SMART-FLOW-v4.5"',
+    'cd "SS-SMART-FLOW-v4.5"',
   ];
 
-  // Wrap Base64 at 64 chars per line so Windows cmd.exe NEVER hits the 8,191-char line limit!
   for (const [name, content] of Object.entries(files)) {
     const b64 = btoa(unescape(encodeURIComponent(content)));
     const chunks = b64.match(/.{1,64}/g) || [];
@@ -174,9 +257,9 @@ export async function downloadWindowsInstallerBat() {
 
   lines.push('echo.');
   lines.push('echo =====================================================');
-  lines.push('echo SS SMART FLOW v4.1 folder created successfully!');
+  lines.push('echo SS SMART FLOW v4.5 folder created successfully!');
   lines.push('echo 1. Open chrome://extensions in Chrome');
-  lines.push('echo 2. Click Load unpacked -> select this SS-SMART-FLOW-v4.1 folder');
+  lines.push('echo 2. Click Load unpacked -> select this SS-SMART-FLOW-v4.5 folder');
   lines.push('echo =====================================================');
   lines.push('explorer .');
   lines.push('pause');
@@ -185,7 +268,7 @@ export async function downloadWindowsInstallerBat() {
   const b64Bat = btoa(unescape(encodeURIComponent(batContent)));
   const a = document.createElement('a');
   a.href = `data:application/octet-stream;base64,${b64Bat}`;
-  a.download = 'INSTALL-SS-SMART-FLOW-v4.1.bat';
+  a.download = 'INSTALL-SS-SMART-FLOW-v4.5.bat';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

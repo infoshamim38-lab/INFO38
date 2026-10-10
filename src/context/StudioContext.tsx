@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import {
   ExtractedIconItem,
   FlowAutomationOptions,
@@ -13,8 +13,11 @@ import {
   ThemeMode,
 } from '../types/studio';
 import {
+  cropOnlySingleIcon,
   detectIconsFromImage,
   generateSample25IconSheetDataUrl,
+  swapIconVectorColors,
+  unifyIconVectorColors,
   vectorizeSingleIconCrop,
 } from '../core/vector-engine/IconDetectionAndVectorEngine';
 import { buildIconSheetPresentations } from '../core/sheet-engine/IconSheetPresentationEngine';
@@ -51,6 +54,11 @@ interface StudioContextValue {
     pending: number;
   };
   runSheetDetectionAndVectorBatch: (imageSrc: string, variant?: IconVariant) => Promise<void>;
+  uploadAndSplitIconsToSingle: (imageSrcList: string[], append?: boolean) => Promise<void>;
+  convertSingleIconsOneByOne: (variantOverride?: IconVariant) => Promise<void>;
+  convertSingleIconById: (iconId: string, variantOverride?: IconVariant) => Promise<void>;
+  swapSingleIconColors: (iconId: string) => void;
+  sameSingleIconColors: (iconId: string) => void;
   retryIconConversion: (iconId: string) => void;
   skipFailedIcon: (iconId: string) => void;
 
@@ -60,7 +68,7 @@ interface StudioContextValue {
   presentations: IconSheetPresentation[];
   selectedPresentationIndex: number;
   setSelectedPresentationIndex: (index: number) => void;
-  regeneratePresentations: () => void;
+  regeneratePresentations: (customSettings?: PresentationSettings) => void;
   autoFixPresentations: () => void;
 
   // Flow Automation & SS SMART FLOW Extension
@@ -74,105 +82,147 @@ interface StudioContextValue {
   flowOptions: FlowAutomationOptions;
   setFlowOptions: React.Dispatch<React.SetStateAction<FlowAutomationOptions>>;
   flowTasks: FlowQueueTask[];
-  addFlowTask: (prompt: string, category?: string, autoExecute?: boolean, openedByAnchor?: boolean) => void;
+  addFlowTask: (prompt: string, category: string, autoDispatch?: boolean, skipWindowOpen?: boolean) => void;
   runFlowAutomationQueue: () => Promise<void>;
-  executeSingleFlowTask: (
-    taskId: string,
-    promptOverride?: string,
-    categoryOverride?: string,
-    openedByAnchor?: boolean
-  ) => Promise<void>;
+  executeSingleFlowTask: (taskId: string) => Promise<void>;
   clearFlowTasks: () => void;
 
-  // Output Management
+  // Settings
   outputFolder: string;
   setOutputFolder: (folder: string) => void;
 
-  // License & Admin
-  activeLicense: LicenseRecord;
+  // License & Admin Access
+  activeLicense: LicenseRecord | null;
   allLicenses: LicenseRecord[];
   activateLicenseKey: (key: string) => boolean;
   createLicense: (holder: string, duration: LicenseDuration) => LicenseRecord;
   revokeLicense: (id: string) => void;
 }
 
-const DEFAULT_PRESENTATION_SETTINGS: PresentationSettings = {
-  iconsPerPresentation: 25,
-  columns: 'Auto',
-  rows: 'Auto',
-  canvasWidth: 'Auto',
-  canvasHeight: 'Auto',
-  iconSize: 'Auto',
-  spacing: 'Auto',
-  padding: 'Auto',
-  margin: 'Auto',
-  autoFit: true,
-  equalSpacing: true,
-  preserveAspectRatio: true,
-  preventCropping: true,
-  preventOverlap: true,
-};
+const StudioContext = createContext<StudioContextValue | undefined>(undefined);
 
-const INITIAL_LICENSES: LicenseRecord[] = [
+const DEFAULT_SAVED_PROMPTS: SavedPromptItem[] = [
   {
-    id: 'lic-01',
-    key: 'SS-STUDIO-LIFE-9942-8821',
-    holder: 'Studio Production Workstation',
-    duration: 'Lifetime',
-    status: 'Active',
-    createdAt: '2026-01-10',
-    expiresAt: 'Never (Lifetime)',
-  },
-  {
-    id: 'lic-02',
-    key: 'SS-STUDIO-1YR-4410-2091',
-    holder: 'Vector Design Team A',
-    duration: '1 Year',
-    status: 'Active',
-    createdAt: '2026-06-01',
-    expiresAt: '2027-06-01',
-  },
-  {
-    id: 'lic-03',
-    key: 'SS-STUDIO-6MO-3190-7742',
-    holder: 'Freelance Seat 04',
-    duration: '6 Months',
-    status: 'Active',
-    createdAt: '2026-08-15',
-    expiresAt: '2027-02-15',
+    id: 'prompt-1',
+    title: '25 Isometric Cloud & Data Center Vector Icons',
+    mode: 'Icon Prompt',
+    createdAt: '2026-04-10 09:15',
+    structured: {
+      subject: '25 distinct cloud computing, server rack, cybersecurity shield, API gateway, and database node icons arranged in a 5x5 grid.',
+      composition: 'Uniform 5x5 grid layout, centered within each cell, consistent 24px visual padding, balanced weight.',
+      style: 'Clean geometric vector icon design, sharp 2px stroke hierarchy, modern tech visual language.',
+      color: 'Deep slate navy (#0F172A) primary geometry with electric cyan (#38BDF8) and indigo (#6366F1) accents.',
+      lighting: 'Flat vector illumination with crisp geometric contrast, zero raster drop shadows.',
+      background: 'Pure isolated solid white background (#FFFFFF) for clean threshold extraction.',
+      details: 'Sharp corner radii, distinct silhouette separation, scalable vector paths without gradients or blur.',
+      quality: 'Commercial stock agency vector standard, 8K crispness, Adobe Illustrator SVG ready.',
+      finalPrompt:
+        'A professional 5x5 icon sheet containing 25 distinct cloud computing, cybersecurity, and database vector icons, uniform grid alignment, clean geometric 2px stroke style, deep navy and cyan accent palette, isolated on a pure white background, crisp vector paths, no gradients, no soft shadows, commercial stock vector standard.',
+    },
   },
 ];
 
-const StudioContext = createContext<StudioContextValue | null>(null);
+const DEFAULT_FLOW_TASKS: FlowQueueTask[] = [
+  {
+    id: 'flow-1',
+    prompt:
+      '25 minimal fintech & mobile banking vector icons arranged in a 5x5 grid, crisp geometric strokes, isolated white background, commercial stock quality',
+    category: 'Vector Icon Sheet',
+    status: 'Downloaded',
+    timestamp: '10:12:04',
+  },
+];
+
+const DEFAULT_LICENSES: LicenseRecord[] = [
+  {
+    id: 'lic-master',
+    key: 'SS-STUDIO-MASTER-2026-PRO',
+    holder: 'Studio Administrator (Master)',
+    duration: 'Lifetime',
+    status: 'Active',
+    createdAt: '2026-01-01',
+    expiresAt: 'Never (Lifetime)',
+  },
+  {
+    id: 'lic-1yr',
+    key: 'SS-STUDIO-1YR-8842-9910',
+    holder: 'Enterprise Design Team',
+    duration: '1 Year',
+    status: 'Active',
+    createdAt: '2026-04-01',
+    expiresAt: '2027-04-01',
+  },
+  {
+    id: 'lic-6mo',
+    key: 'SS-STUDIO-6MO-4421-7730',
+    holder: 'Creative Agency Partner',
+    duration: '6 Months',
+    status: 'Active',
+    createdAt: '2026-04-01',
+    expiresAt: '2026-10-01',
+  },
+  {
+    id: 'lic-1mo',
+    key: 'SS-STUDIO-1MO-1190-3321',
+    holder: 'Pro Creator Subscriber',
+    duration: '1 Month',
+    status: 'Active',
+    createdAt: '2026-04-01',
+    expiresAt: '2026-05-01',
+  },
+];
+
+const DEFAULT_PRESENTATION_SETTINGS: PresentationSettings = {
+  iconsPerSheet: 25,
+  columns: 5,
+  rows: 5,
+  padding: 56,
+  spacing: 24,
+  backgroundStyle: 'White Grid',
+  gridOverlay: true,
+  centerAlignment: true,
+  equalMargins: true,
+  title: 'Cybersecurity & Digital Vector Set',
+  canvasSizePreset: '2000 × 2000 px (Square)',
+  customWidth: 2000,
+  customHeight: 2000,
+  iconSizePercent: 62,
+  iconShape: 'Rounded Square',
+  shapeFillColor: '#F8FAFC',
+  shapeStrokeColor: '#E2E8F0',
+  shapeStrokeWidth: 2,
+  canvasBgColor: '#FFFFFF',
+  headerTitle: 'CYBERSECURITY & TECH ICON PACK',
+  headerSubtitle: '100% Editable Vector SVG Paths · Scalable Commercial Presentation Sheet',
+  badgeText: 'PRO VECTOR SET',
+  footerText: 'SS SMART STUDIO · Commercial Vector Standard · Clean Closed SVG Paths',
+  showHeader: true,
+  showFooter: true,
+  showIconLabels: true,
+  titleColor: '#0F172A',
+  subtitleColor: '#64748B',
+  labelColor: '#475569',
+};
 
 export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeNav, setActiveNav] = useState<NavSection>('dashboard');
-  const [theme, setThemeState] = useState<ThemeMode>(() => {
-    const saved = localStorage.getItem('ss_smart_studio_theme');
-    if (saved === 'DARK' || saved === 'BLUE' || saved === 'RED' || saved === 'CYAN') {
-      return saved;
-    }
-    return 'DARK';
-  });
-
-  const [geminiModel, setGeminiModel] = useState<string>(() => {
-    return localStorage.getItem('ss_smart_studio_model') || 'gemini-3.1-flash-lite';
-  });
+  const [theme, setTheme] = useState<ThemeMode>('dark');
+  const [geminiModel, setGeminiModel] = useState<string>('gemini-3.8-flash');
   const [geminiStatus, setGeminiStatus] = useState<'Connected' | 'Disconnected' | 'Testing' | 'Failed'>('Connected');
   const [geminiError, setGeminiError] = useState<string | null>(null);
 
   const [savedPrompts, setSavedPrompts] = useState<SavedPromptItem[]>(() => {
     try {
       const raw = localStorage.getItem('ss_smart_studio_prompts');
-      return raw ? JSON.parse(raw) : [];
+      return raw ? JSON.parse(raw) : DEFAULT_SAVED_PROMPTS;
     } catch {
-      return [];
+      return DEFAULT_SAVED_PROMPTS;
     }
   });
 
   const [sourceSheetImage, setSourceSheetImage] = useState<string | null>(null);
   const [extractedIcons, setExtractedIcons] = useState<ExtractedIconItem[]>([]);
-  const [activeVariant, setActiveVariantState] = useState<IconVariant>('VARIANT 01');
+  const [activeVariant, setActiveVariant] = useState<IconVariant>('COLOR VECTOR');
   const [batchProgress, setBatchProgress] = useState({
     active: false,
     total: 0,
@@ -181,106 +231,163 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     pending: 0,
   });
 
-  const [presentationSettings, setPresentationSettings] = useState<PresentationSettings>(
-    DEFAULT_PRESENTATION_SETTINGS
-  );
+  const [presentationSettings, setPresentationSettings] = useState<PresentationSettings>(() => {
+    try {
+      const saved = localStorage.getItem('ss_smart_studio_presentation_settings');
+      if (saved) {
+        return { ...DEFAULT_PRESENTATION_SETTINGS, ...JSON.parse(saved) };
+      }
+    } catch {
+      // ignore
+    }
+    return DEFAULT_PRESENTATION_SETTINGS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('ss_smart_studio_presentation_settings', JSON.stringify(presentationSettings));
+    } catch {
+      // ignore
+    }
+  }, [presentationSettings]);
+
   const [presentations, setPresentations] = useState<IconSheetPresentation[]>([]);
   const [selectedPresentationIndex, setSelectedPresentationIndex] = useState<number>(0);
 
   const [extensionConnected, setExtensionConnected] = useState<boolean>(false);
   const [extensionVersion, setExtensionVersion] = useState<string | null>(null);
   const [extensionPaused, setExtensionPaused] = useState<boolean>(false);
-  const [flowTargetUrl, setFlowTargetUrl] = useState<string>(() => {
-    return localStorage.getItem('ss_smart_studio_flow_url') || 'https://labs.google/fx/tools/flow';
-  });
+  const [flowTargetUrl, setFlowTargetUrl] = useState<string>('https://flow.google.com/');
   const [flowOptions, setFlowOptions] = useState<FlowAutomationOptions>({
     autoSubmit: true,
     autoGenerate: true,
     autoDetectResult: true,
     autoDownload: true,
   });
-  const [flowTasks, setFlowTasks] = useState<FlowQueueTask[]>([
-    {
-      id: 'flow-01',
-      prompt: '25 minimalist fintech solid black vector icons on pure white grid, zero labels, crisp silhouette',
-      category: 'Fintech & Banking',
-      status: 'Downloaded',
-      progress: 100,
-      outputFile: 'D:\\SS SMART STUDIO\\Output\\Flow\\fintech-sheet-01.png',
-      timestamp: '10:14:22',
-    },
-    {
-      id: 'flow-02',
-      prompt: '25 cybersecurity shield, lock, and cloud infrastructure monoline outline icons on pure white surface',
-      category: 'Cybersecurity',
-      status: 'Queued',
-      progress: 0,
-      timestamp: '10:18:05',
-    },
-  ]);
+  const [flowTasks, setFlowTasks] = useState<FlowQueueTask[]>(DEFAULT_FLOW_TASKS);
+  const [outputFolder, setOutputFolder] = useState<string>('C:\\Users\\Studio\\Exports\\SS-Smart-Studio');
 
-  const [outputFolder, setOutputFolderState] = useState<string>(() => {
-    return localStorage.getItem('ss_smart_studio_output_folder') || 'D:\\SS SMART STUDIO\\Output';
-  });
-
+  // License State
   const [allLicenses, setAllLicenses] = useState<LicenseRecord[]>(() => {
     try {
-      const raw = localStorage.getItem('ss_smart_studio_licenses');
-      return raw ? JSON.parse(raw) : INITIAL_LICENSES;
+      const saved = localStorage.getItem('ss_smart_studio_all_licenses');
+      return saved ? JSON.parse(saved) : DEFAULT_LICENSES;
     } catch {
-      return INITIAL_LICENSES;
+      return DEFAULT_LICENSES;
     }
   });
-  const [activeLicense, setActiveLicense] = useState<LicenseRecord>(() => {
-    return INITIAL_LICENSES[0];
+
+  const [activeLicense, setActiveLicense] = useState<LicenseRecord | null>(() => {
+    try {
+      const saved = localStorage.getItem('ss_smart_studio_active_license');
+      return saved ? JSON.parse(saved) : DEFAULT_LICENSES[0];
+    } catch {
+      return DEFAULT_LICENSES[0];
+    }
   });
 
-  // Sync theme attribute on documentElement
+  const extractedIconsRef = useRef<ExtractedIconItem[]>(extractedIcons);
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('ss_smart_studio_theme', theme);
+    extractedIconsRef.current = extractedIcons;
+  }, [extractedIcons]);
+
+  const presentationSettingsRef = useRef<PresentationSettings>(presentationSettings);
+  useEffect(() => {
+    presentationSettingsRef.current = presentationSettings;
+  }, [presentationSettings]);
+
+  useEffect(() => {
+    document.documentElement.classList.remove('dark', 'light');
+    document.documentElement.classList.add(theme);
   }, [theme]);
 
   useEffect(() => {
-    localStorage.setItem('ss_smart_studio_model', geminiModel);
-  }, [geminiModel]);
-
-  useEffect(() => {
-    localStorage.setItem('ss_smart_studio_prompts', JSON.stringify(savedPrompts));
+    try {
+      localStorage.setItem('ss_smart_studio_prompts', JSON.stringify(savedPrompts));
+    } catch {
+      // ignore storage quota errors
+    }
   }, [savedPrompts]);
 
   useEffect(() => {
-    localStorage.setItem('ss_smart_studio_output_folder', outputFolder);
-  }, [outputFolder]);
-
-  useEffect(() => {
-    localStorage.setItem('ss_smart_studio_licenses', JSON.stringify(allLicenses));
+    try {
+      localStorage.setItem('ss_smart_studio_all_licenses', JSON.stringify(allLicenses));
+    } catch {
+      // ignore
+    }
   }, [allLicenses]);
 
-  // Seed initial 25-icon sheet on first load so Vector Converter, Icon Extractor, and Icon Sheet Builder are immediately populated & testable
+  useEffect(() => {
+    try {
+      if (activeLicense) {
+        localStorage.setItem('ss_smart_studio_active_license', JSON.stringify(activeLicense));
+      } else {
+        localStorage.removeItem('ss_smart_studio_active_license');
+      }
+    } catch {
+      // ignore
+    }
+  }, [activeLicense]);
+
+  // Listen for real-time messages from the SS SMART FLOW Chrome Extension
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.source !== 'SS_SMART_FLOW_EXTENSION') return;
+
+      if (data.type === 'EXTENSION_READY' || data.type === 'EXTENSION_PONG') {
+        setExtensionConnected(true);
+        if (data.version) {
+          setExtensionVersion(String(data.version));
+        }
+      }
+
+      if (data?.type === 'FLOW_TASK_ACK' && data?.task?.id) {
+        setExtensionConnected(true);
+        setFlowTasks((prev) =>
+          prev.map((t) =>
+            t.id === data.task.id
+              ? {
+                  ...t,
+                  status: 'Downloaded',
+                  timestamp: new Date().toTimeString().slice(0, 8),
+                }
+              : t
+          )
+        );
+      }
+
+      if (data?.type === 'FLOW_GENERATED_IMAGE' && data?.imageUrl) {
+        setExtensionConnected(true);
+        const imgUrl = String(data.imageUrl);
+        if (imgUrl.startsWith('data:image/')) {
+          setSourceSheetImage(imgUrl);
+          void runSheetDetectionAndVectorBatch(imgUrl, activeVariant);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    window.postMessage({ source: 'SS_SMART_STUDIO_APP', type: 'PING_EXTENSION' }, '*');
+
+    return () => window.removeEventListener('message', handleMessage);
+  }, [activeVariant]);
+
+  // Initialize default sample icon sheet on first mount so Vector & Icon Sheet modules are immediately interactive
   useEffect(() => {
     const sampleUrl = generateSample25IconSheetDataUrl();
     setSourceSheetImage(sampleUrl);
-    void runSheetDetectionAndVectorBatch(sampleUrl, 'VARIANT 01');
+    void runSheetDetectionAndVectorBatch(sampleUrl, 'COLOR VECTOR');
   }, []);
 
-  // Rebuild presentations whenever extractedIcons or presentationSettings change
+  // Automatically keep Icon Sheet Presentations synced whenever extractedIcons or presentationSettings change
   useEffect(() => {
-    const readyIcons = extractedIcons.filter((ic) => ic.status === 'Ready');
-    const built = buildIconSheetPresentations(readyIcons, presentationSettings);
-    setPresentations(built);
-    if (selectedPresentationIndex >= built.length) {
-      setSelectedPresentationIndex(0);
+    const validVectors = extractedIcons.filter((i) => i.svgContent && i.status === 'Completed');
+    if (validVectors.length > 0) {
+      const sheets = buildIconSheetPresentations(validVectors, presentationSettings);
+      setPresentations(sheets);
     }
   }, [extractedIcons, presentationSettings]);
-
-  const setTheme = (next: ThemeMode) => {
-    setThemeState(next);
-  };
-
-  const setOutputFolder = (folder: string) => {
-    setOutputFolderState(folder);
-  };
 
   const addSavedPrompt = (item: SavedPromptItem) => {
     setSavedPrompts((prev) => [item, ...prev]);
@@ -290,14 +397,186 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSavedPrompts((prev) => prev.filter((p) => p.id !== id));
   };
 
+  /**
+   * STEP 1: Upload any number of icon sets or single images -> automatically split into individual Single Icons!
+   */
+  const uploadAndSplitIconsToSingle = async (
+    imageSrcList: string[],
+    append = false
+  ): Promise<void> => {
+    if (!imageSrcList.length) return;
+    setSourceSheetImage(imageSrcList[0]);
+
+    const startingList: ExtractedIconItem[] = append ? [...extractedIconsRef.current] : [];
+    let globalIndex = startingList.length + 1;
+
+    setBatchProgress({
+      active: true,
+      total: imageSrcList.length,
+      completed: 0,
+      failed: 0,
+      pending: imageSrcList.length,
+    });
+
+    const newlySplit: ExtractedIconItem[] = [];
+
+    for (let s = 0; s < imageSrcList.length; s++) {
+      const src = imageSrcList[s];
+      const boxes = await detectIconsFromImage(src);
+      for (let b = 0; b < boxes.length; b++) {
+        const item = await cropOnlySingleIcon(src, boxes[b], globalIndex);
+        newlySplit.push(item);
+        globalIndex++;
+      }
+      setBatchProgress({
+        active: s + 1 < imageSrcList.length,
+        total: startingList.length + newlySplit.length,
+        completed: startingList.filter((i) => i.isVectorized).length,
+        failed: 0,
+        pending: newlySplit.length,
+      });
+    }
+
+    const combined = [...startingList, ...newlySplit];
+    setExtractedIcons(combined);
+    setBatchProgress({
+      active: false,
+      total: combined.length,
+      completed: combined.filter((i) => i.isVectorized).length,
+      failed: combined.filter((i) => i.status === 'Failed').length,
+      pending: combined.filter((i) => !i.isVectorized).length,
+    });
+  };
+
+  /**
+   * STEP 2: When user clicks "Vector", convert each Single Icon 1-by-1 sequentially into crisp multi-color vector SVG!
+   */
+  const convertSingleIconsOneByOne = async (variantOverride?: IconVariant): Promise<void> => {
+    const targetVariant = variantOverride || activeVariant;
+    const currentList = [...extractedIconsRef.current];
+    if (currentList.length === 0) return;
+
+    const total = currentList.length;
+    let completed = 0;
+    let failed = 0;
+
+    setBatchProgress({
+      active: true,
+      total,
+      completed: 0,
+      failed: 0,
+      pending: total,
+    });
+
+    const workingList = currentList.map((item) => ({
+      ...item,
+      status: 'Pending' as const,
+    }));
+    setExtractedIcons([...workingList]);
+
+    for (let i = 0; i < workingList.length; i++) {
+      workingList[i] = {
+        ...workingList[i],
+        status: 'Converting',
+      };
+      setExtractedIcons([...workingList]);
+
+      await new Promise((r) => setTimeout(r, 45));
+
+      const cropSrc = workingList[i].croppedPreviewUrl;
+      const fullBounds = {
+        x: 0,
+        y: 0,
+        width: workingList[i].bounds.width,
+        height: workingList[i].bounds.height,
+      };
+
+      const vectorized = await vectorizeSingleIconCrop(
+        cropSrc,
+        fullBounds,
+        workingList[i].index,
+        targetVariant
+      );
+
+      workingList[i] = {
+        ...vectorized,
+        id: workingList[i].id,
+        name: workingList[i].name,
+        bounds: workingList[i].bounds,
+        croppedPreviewUrl: workingList[i].croppedPreviewUrl,
+        isVectorized: true,
+      };
+
+      if (workingList[i].status === 'Completed') {
+        completed++;
+      } else {
+        failed++;
+      }
+
+      setExtractedIcons([...workingList]);
+      setBatchProgress({
+        active: i + 1 < total,
+        total,
+        completed,
+        failed,
+        pending: Math.max(0, total - completed - failed),
+      });
+    }
+
+    const sheets = buildIconSheetPresentations(workingList, presentationSettingsRef.current);
+    setPresentations(sheets);
+    setSelectedPresentationIndex(0);
+  };
+
+  const convertSingleIconById = async (
+    iconId: string,
+    variantOverride?: IconVariant
+  ): Promise<void> => {
+    const targetVariant = variantOverride || activeVariant;
+    const currentList = [...extractedIconsRef.current];
+    const idx = currentList.findIndex((item) => item.id === iconId);
+    if (idx === -1) return;
+
+    currentList[idx] = { ...currentList[idx], status: 'Converting' };
+    setExtractedIcons([...currentList]);
+
+    await new Promise((r) => setTimeout(r, 30));
+    const item = currentList[idx];
+    const vectorized = await vectorizeSingleIconCrop(
+      item.croppedPreviewUrl,
+      { x: 0, y: 0, width: item.bounds.width, height: item.bounds.height },
+      item.index,
+      targetVariant
+    );
+
+    currentList[idx] = {
+      ...vectorized,
+      id: item.id,
+      name: item.name,
+      bounds: item.bounds,
+      croppedPreviewUrl: item.croppedPreviewUrl,
+      isVectorized: true,
+    };
+    setExtractedIcons([...currentList]);
+  };
+
+  const swapSingleIconColors = (iconId: string) => {
+    setExtractedIcons((prev) =>
+      prev.map((icon) => (icon.id === iconId ? swapIconVectorColors(icon) : icon))
+    );
+  };
+
+  const sameSingleIconColors = (iconId: string) => {
+    setExtractedIcons((prev) =>
+      prev.map((icon) => (icon.id === iconId ? unifyIconVectorColors(icon) : icon))
+    );
+  };
+
   const runSheetDetectionAndVectorBatch = async (
     imageSrc: string,
-    variantOverride?: IconVariant
+    variant: IconVariant = activeVariant
   ) => {
-    const targetVariant = variantOverride || activeVariant;
-    setSourceSheetImage(imageSrc);
-
-    const { boxes, imageElement } = await detectIconsFromImage(imageSrc);
+    const boxes = await detectIconsFromImage(imageSrc);
     const total = boxes.length;
 
     setBatchProgress({
@@ -309,258 +588,157 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
 
     const results: ExtractedIconItem[] = [];
+    let completed = 0;
+    let failed = 0;
 
-    // Process icons asynchronously in small chunks so the main UI thread never freezes
-    const chunkSize = 5;
-    for (let i = 0; i < total; i += chunkSize) {
-      await new Promise<void>((resolve) => {
-        setTimeout(() => {
-          const end = Math.min(total, i + chunkSize);
-          for (let j = i; j < end; j++) {
-            try {
-              const item = vectorizeSingleIconCrop(imageElement, boxes[j], j, targetVariant);
-              results.push(item);
-            } catch (err: any) {
-              const formattedIdx = String(j + 1).padStart(2, '0');
-              results.push({
-                id: `icon-err-${j}`,
-                index: j + 1,
-                name: `${formattedIdx}.svg`,
-                bbox: boxes[j],
-                originalWidth: boxes[j].width,
-                originalHeight: boxes[j].height,
-                aspectRatio: 1,
-                croppedDataUrl: '',
-                svgContent: '',
-                variant: targetVariant,
-                status: 'Failed',
-                errorMessage: err?.message || 'Vector conversion failed.',
-                validation: {
-                  isComplete: false,
-                  insideCanvas: false,
-                  noCrop: false,
-                  noOverlap: false,
-                  noBrokenPath: false,
-                  correctAspectRatio: false,
-                  safeMargin: false,
-                  validSvg: false,
-                },
-              });
-            }
-          }
+    for (let i = 0; i < boxes.length; i++) {
+      const item = await vectorizeSingleIconCrop(imageSrc, boxes[i], i + 1, variant);
+      results.push(item);
+      if (item.status === 'Completed') {
+        completed++;
+      } else {
+        failed++;
+      }
 
-          const completedCount = results.filter((r) => r.status === 'Ready').length;
-          const failedCount = results.filter((r) => r.status === 'Failed').length;
-          const pendingCount = Math.max(0, total - results.length);
-
-          setExtractedIcons([...results]);
-          setBatchProgress({
-            active: pendingCount > 0,
-            total,
-            completed: completedCount,
-            failed: failedCount,
-            pending: pendingCount,
-          });
-          resolve();
-        }, 25);
+      setExtractedIcons([...results]);
+      setBatchProgress({
+        active: i + 1 < total,
+        total,
+        completed,
+        failed,
+        pending: total - completed - failed,
       });
     }
-  };
 
-  const setActiveVariant = (variant: IconVariant) => {
-    setActiveVariantState(variant);
-    if (sourceSheetImage) {
-      void runSheetDetectionAndVectorBatch(sourceSheetImage, variant);
-    }
+    const sheets = buildIconSheetPresentations(results, presentationSettingsRef.current);
+    setPresentations(sheets);
+    setSelectedPresentationIndex(0);
   };
 
   const retryIconConversion = async (iconId: string) => {
-    if (!sourceSheetImage) return;
-    const target = extractedIcons.find((ic) => ic.id === iconId);
-    if (!target) return;
-
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image();
-      el.onload = () => resolve(el);
-      el.onerror = () => reject(new Error('Image load failed'));
-      el.src = sourceSheetImage;
-    });
-
-    const recovered = vectorizeSingleIconCrop(img, target.bbox, target.index - 1, activeVariant);
-    setExtractedIcons((prev) => prev.map((ic) => (ic.id === iconId ? recovered : ic)));
+    await convertSingleIconById(iconId, activeVariant);
   };
 
   const skipFailedIcon = (iconId: string) => {
-    setExtractedIcons((prev) => prev.filter((ic) => ic.id !== iconId));
+    setExtractedIcons((prev) => {
+      const updated = prev.filter((item) => item.id !== iconId);
+      setPresentations(buildIconSheetPresentations(updated, presentationSettingsRef.current));
+      return updated;
+    });
   };
 
-  const regeneratePresentations = () => {
-    const readyIcons = extractedIcons.filter((ic) => ic.status === 'Ready');
-    const built = buildIconSheetPresentations(readyIcons, presentationSettings);
-    setPresentations(built);
+  const regeneratePresentations = (customSettings?: PresentationSettings) => {
+    const settingsToUse = customSettings || presentationSettings;
+    const sheets = buildIconSheetPresentations(extractedIcons, settingsToUse);
+    setPresentations(sheets);
+    setSelectedPresentationIndex(0);
   };
 
   const autoFixPresentations = () => {
     const fixedSettings: PresentationSettings = {
       ...presentationSettings,
-      columns: 'Auto',
-      rows: 'Auto',
-      iconSize: 'Auto',
-      spacing: 'Auto',
-      padding: 'Auto',
-      margin: 'Auto',
-      autoFit: true,
-      equalSpacing: true,
-      preserveAspectRatio: true,
-      preventCropping: true,
-      preventOverlap: true,
+      padding: Math.max(48, presentationSettings.padding),
+      spacing: Math.max(20, presentationSettings.spacing),
+      centerAlignment: true,
+      equalMargins: true,
     };
     setPresentationSettings(fixedSettings);
+    const sheets = buildIconSheetPresentations(extractedIcons, fixedSettings);
+    setPresentations(sheets);
   };
 
-  useEffect(() => {
-    localStorage.setItem('ss_smart_studio_flow_url', flowTargetUrl);
-  }, [flowTargetUrl]);
+  const dispatchTaskToExtension = (task: FlowQueueTask, skipWindowOpen = false) => {
+    void navigator.clipboard.writeText(task.prompt).catch(() => {});
 
-  // Listen for responses from SS SMART FLOW Chrome Extension
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (!event.data || event.data.source !== 'SS_SMART_FLOW_EXT') return;
-      if (event.data.type === 'EXT_PONG') {
-        setExtensionConnected(true);
-        if (event.data.version) {
-          setExtensionVersion(String(event.data.version));
-        }
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    window.postMessage({ source: 'SS_SMART_STUDIO', type: 'EXT_PING' }, '*');
-    const pingTimer = setInterval(() => {
-      window.postMessage({ source: 'SS_SMART_STUDIO', type: 'EXT_PING' }, '*');
-    }, 1500);
-    return () => {
-      clearInterval(pingTimer);
-      window.removeEventListener('message', handleMessage);
-    };
-  }, []);
-
-  const executeSingleFlowTask = async (
-    taskId: string,
-    promptOverride?: string,
-    categoryOverride?: string,
-    openedByAnchor = false
-  ) => {
-    if (extensionPaused) return;
-
-    const existing = flowTasks.find((t) => t.id === taskId);
-    const promptText = promptOverride || existing?.prompt || '';
-    const categoryText = categoryOverride || existing?.category || 'Vector Icon Sheet';
-    if (!promptText) return;
-
-    // Copy prompt to clipboard automatically so it is also ready if user pastes manually
-    try {
-      await navigator.clipboard.writeText(promptText);
-    } catch {
-      // ignore clipboard permission error if any
-    }
-
-    // 1. Dispatch directly to SS SMART FLOW Chrome Extension (which opens/activates Google Flow tab, injects prompt, clicks Generate, and auto-downloads)
     window.postMessage(
       {
-        source: 'SS_SMART_STUDIO',
-        type: 'DISPATCH_TO_FLOW',
-        prompt: promptText,
-        category: categoryText,
+        source: 'SS_SMART_STUDIO_APP',
+        type: 'DISPATCH_FLOW_TASK',
         targetUrl: flowTargetUrl,
         options: flowOptions,
-        openedByAnchor,
+        task,
       },
       '*'
     );
 
-    if (flowOptions.autoSubmit) {
+    if (!extensionConnected && !skipWindowOpen) {
+      const sep = flowTargetUrl.includes('?') ? '&' : '?';
+      const deepLinkUrl = `${flowTargetUrl}${sep}ss_prompt=${encodeURIComponent(
+        task.prompt
+      )}#ss_prompt=${encodeURIComponent(task.prompt)}`;
+      window.open(deepLinkUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const executeSingleFlowTask = async (taskId: string) => {
+    const targetTask = flowTasks.find((t) => t.id === taskId);
+    if (!targetTask) return;
+
+    dispatchTaskToExtension(targetTask);
+
+    const stages: FlowQueueTask['status'][] = [
+      'Submitted',
+      'Generating',
+      'Detected',
+      'Downloaded',
+    ];
+
+    for (const stage of stages) {
+      await new Promise((r) => setTimeout(r, 320));
       setFlowTasks((prev) =>
         prev.map((t) =>
           t.id === taskId
             ? {
                 ...t,
-                status: 'Submitted',
-                progress: 40,
-                errorMessage: undefined,
-                outputFile: `Dispatched to Chrome Extension → ${flowTargetUrl}`,
+                status: stage,
+                timestamp: new Date().toTimeString().slice(0, 8),
               }
             : t
         )
       );
     }
-
-    if (flowOptions.autoGenerate) {
-      setTimeout(() => {
-        setFlowTasks((prev) =>
-          prev.map((t) =>
-            t.id === taskId
-              ? {
-                  ...t,
-                  status: 'Generating',
-                  progress: 75,
-                  outputFile: `Running inside Chrome Flow Tab (${flowTargetUrl})`,
-                }
-              : t
-          )
-        );
-      }, 600);
-    }
-
-    if (flowOptions.autoDetectResult) {
-      setTimeout(() => {
-        setFlowTasks((prev) =>
-          prev.map((t) =>
-            t.id === taskId
-              ? {
-                  ...t,
-                  status: 'Downloaded',
-                  progress: 100,
-                  outputFile: `${outputFolder}\\Flow\\SS-SMART-FLOW-${taskId}.png`,
-                }
-              : t
-          )
-        );
-      }, 1800);
-    }
   };
 
   const addFlowTask = (
     prompt: string,
-    category = 'Custom Workflow',
-    autoExecute = true,
-    openedByAnchor = false
+    category: string,
+    autoDispatch = true,
+    skipWindowOpen = false
   ) => {
-    const now = new Date();
-    const timestamp = now.toTimeString().slice(0, 8);
-    const newId = `flow-${Date.now()}`;
-    const task: FlowQueueTask = {
-      id: newId,
+    const newTask: FlowQueueTask = {
+      id: `flow-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       prompt,
       category,
-      status: 'Queued',
-      progress: 10,
-      timestamp,
+      status: autoDispatch ? 'Submitted' : 'Queued',
+      timestamp: new Date().toTimeString().slice(0, 8),
     };
-    setFlowTasks((prev) => [task, ...prev]);
+    setFlowTasks((prev) => [newTask, ...prev]);
 
-    if (autoExecute && !extensionPaused) {
+    if (autoDispatch) {
+      dispatchTaskToExtension(newTask, skipWindowOpen);
       setTimeout(() => {
-        void executeSingleFlowTask(newId, prompt, category, openedByAnchor);
-      }, 80);
+        setFlowTasks((prev) =>
+          prev.map((t) =>
+            t.id === newTask.id
+              ? {
+                  ...t,
+                  status: 'Downloaded',
+                  timestamp: new Date().toTimeString().slice(0, 8),
+                }
+              : t
+          )
+        );
+      }, 900);
     }
   };
 
   const runFlowAutomationQueue = async () => {
-    if (extensionPaused) return;
-    for (const task of flowTasks) {
-      if (task.status !== 'Downloaded') {
-        await executeSingleFlowTask(task.id, task.prompt, task.category);
-      }
+    const queued = flowTasks.filter((t) => t.status !== 'Downloaded');
+    const targets = queued.length > 0 ? queued : flowTasks;
+
+    for (const task of targets) {
+      if (extensionPaused) break;
+      await executeSingleFlowTask(task.id);
     }
   };
 
@@ -568,9 +746,11 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setFlowTasks([]);
   };
 
-  const activateLicenseKey = (key: string): boolean => {
+  // License Management Functions
+  const activateLicenseKey = (inputKey: string): boolean => {
+    const cleanKey = inputKey.trim().toUpperCase();
     const found = allLicenses.find(
-      (l) => l.key.trim().toUpperCase() === key.trim().toUpperCase() && l.status === 'Active'
+      (l) => l.key.toUpperCase() === cleanKey && l.status === 'Active'
     );
     if (found) {
       setActiveLicense(found);
@@ -652,6 +832,11 @@ export const StudioProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setActiveVariant,
         batchProgress,
         runSheetDetectionAndVectorBatch,
+        uploadAndSplitIconsToSingle,
+        convertSingleIconsOneByOne,
+        convertSingleIconById,
+        swapSingleIconColors,
+        sameSingleIconColors,
         retryIconConversion,
         skipFailedIcon,
         presentationSettings,

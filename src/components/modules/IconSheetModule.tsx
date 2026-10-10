@@ -1,31 +1,167 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   CheckCircle2,
   AlertTriangle,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
-  RefreshCw,
-  Upload,
   Download,
+  RefreshCw,
   Wrench,
+  Sparkles,
+  Maximize2,
+  Shapes,
+  Type,
+  LayoutTemplate,
+  Palette,
 } from 'lucide-react';
 import { useStudio } from '../../context/StudioContext';
 import {
-  exportAllPresentationsAsZip,
-  exportIndividualSvgsAsZip,
-  exportPresentationAsRaster,
-  exportPresentationAsSvg,
+  CanvasSizePreset,
+  PresentationBackground,
+  PresentationIconShape,
+  PresentationSettings,
+} from '../../types/studio';
+import {
+  downloadEpsFromSvg,
+  downloadPngFromSvg,
+  downloadSvgFile,
+  exportFullStudioBundleZip,
 } from '../../core/export/ExportEngine';
-import { validateSingleSvg } from '../../core/vector-engine/IconDetectionAndVectorEngine';
-import { ExtractedIconItem } from '../../types/studio';
 
-const PRESET_COUNTS = [10, 25, 50, 100];
+const BACKGROUNDS: PresentationBackground[] = [
+  'White Grid',
+  'Clean Light',
+  'Dark Technical',
+  'Transparent',
+];
+
+const CANVAS_SIZE_PRESETS: { label: CanvasSizePreset; w: number; h: number }[] = [
+  { label: '2000 × 2000 px (Square)', w: 2000, h: 2000 },
+  { label: '3000 × 2000 px (Landscape)', w: 3000, h: 2000 },
+  { label: '4000 × 4000 px (4K Master)', w: 4000, h: 4000 },
+  { label: '1920 × 1080 px (HD 16:9)', w: 1920, h: 1080 },
+  { label: 'Custom Size', w: 2000, h: 2000 },
+];
+
+const ICON_SHAPES: PresentationIconShape[] = [
+  'Rounded Square',
+  'Circle',
+  'Squircle',
+  'Hexagon',
+  'Diamond',
+  'Shield',
+  'Octagon',
+  'Dashed Frame',
+  'Soft Card Shadow',
+  'None',
+];
+
+const GRID_PRESETS = [
+  { label: '6 Icons (3×2)', count: 6, cols: 3, rows: 2 },
+  { label: '9 Icons (3×3)', count: 9, cols: 3, rows: 3 },
+  { label: '12 Icons (4×3)', count: 12, cols: 4, rows: 3 },
+  { label: '16 Icons (4×4)', count: 16, cols: 4, rows: 4 },
+  { label: '20 Icons (5×4)', count: 20, cols: 5, rows: 4 },
+  { label: '25 Icons (5×5)', count: 25, cols: 5, rows: 5 },
+  { label: '30 Icons (6×5)', count: 30, cols: 6, rows: 5 },
+  { label: '36 Icons (6×6)', count: 36, cols: 6, rows: 6 },
+];
+
+const PRESENTATION_TEMPLATES: {
+  name: string;
+  desc: string;
+  patch: Partial<PresentationSettings>;
+}[] = [
+  {
+    name: 'Marketplace Pro Card',
+    desc: 'Rounded square backing, clean header & #01 labels',
+    patch: {
+      backgroundStyle: 'White Grid',
+      canvasBgColor: '#FFFFFF',
+      iconShape: 'Rounded Square',
+      shapeFillColor: '#F8FAFC',
+      shapeStrokeColor: '#E2E8F0',
+      shapeStrokeWidth: 2,
+      showHeader: true,
+      showFooter: true,
+      showIconLabels: true,
+      titleColor: '#0F172A',
+      subtitleColor: '#64748B',
+      labelColor: '#475569',
+    },
+  },
+  {
+    name: 'Circle Badge Studio',
+    desc: 'Soft blue circle backing with crisp border',
+    patch: {
+      backgroundStyle: 'Clean Light',
+      canvasBgColor: '#F8FAFC',
+      iconShape: 'Circle',
+      shapeFillColor: '#FFFFFF',
+      shapeStrokeColor: '#CBD5E1',
+      shapeStrokeWidth: 2.5,
+      showHeader: true,
+      showFooter: true,
+      showIconLabels: true,
+      titleColor: '#1E293B',
+      subtitleColor: '#64748B',
+      labelColor: '#334155',
+    },
+  },
+  {
+    name: 'Hexagon Cyber Dark',
+    desc: 'Dark slate artboard with hexagon vector pods',
+    patch: {
+      backgroundStyle: 'Dark Technical',
+      canvasBgColor: '#0F172A',
+      iconShape: 'Hexagon',
+      shapeFillColor: '#1E293B',
+      shapeStrokeColor: '#38BDF8',
+      shapeStrokeWidth: 2,
+      showHeader: true,
+      showFooter: true,
+      showIconLabels: true,
+      titleColor: '#F8FAFC',
+      subtitleColor: '#94A3B8',
+      labelColor: '#38BDF8',
+    },
+  },
+  {
+    name: 'Shield Security Pack',
+    desc: 'Shield container frames for cybersecurity/tech icons',
+    patch: {
+      backgroundStyle: 'White Grid',
+      canvasBgColor: '#FFFFFF',
+      iconShape: 'Shield',
+      shapeFillColor: '#EEF2FF',
+      shapeStrokeColor: '#6366F1',
+      shapeStrokeWidth: 2,
+      showHeader: true,
+      showFooter: true,
+      showIconLabels: true,
+      titleColor: '#1E1B4B',
+      subtitleColor: '#4F46E5',
+      labelColor: '#4338CA',
+    },
+  },
+  {
+    name: 'Minimalist Pure Vector',
+    desc: 'No backing shapes — pure isolated vector icons',
+    patch: {
+      backgroundStyle: 'Clean Light',
+      canvasBgColor: '#FFFFFF',
+      iconShape: 'None',
+      shapeStrokeWidth: 0,
+      showHeader: true,
+      showFooter: true,
+      showIconLabels: false,
+      titleColor: '#0F172A',
+      subtitleColor: '#64748B',
+    },
+  },
+];
 
 export const IconSheetModule: React.FC = () => {
   const {
     extractedIcons,
-    setExtractedIcons,
     presentationSettings,
     setPresentationSettings,
     presentations,
@@ -35,537 +171,769 @@ export const IconSheetModule: React.FC = () => {
     autoFixPresentations,
   } = useStudio();
 
-  const svgUploadRef = useRef<HTMLInputElement>(null);
-  const [zoom, setZoom] = useState<number>(1);
-  const [showSafeGrid, setShowSafeGrid] = useState<boolean>(true);
+  const [activeBuilderTab, setActiveBuilderTab] = useState<'size' | 'shape' | 'text'>('size');
+  const [exportingBundle, setExportingBundle] = useState(false);
 
-  const currentPresentation =
+  const activePresentation =
     presentations[selectedPresentationIndex] || presentations[0] || null;
 
-  const handleSvgFilesUpload = async (files: FileList) => {
-    const newItems: ExtractedIconItem[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (file.name.endsWith('.svg') || file.type === 'image/svg+xml') {
-        const text = await file.text();
-        const idx = extractedIcons.length + newItems.length + 1;
-        const num = String(idx).padStart(2, '0');
-        newItems.push({
-          id: `uploaded-svg-${Date.now()}-${i}`,
-          index: idx,
-          name: `${num}.svg`,
-          bbox: { x: 0, y: 0, width: 96, height: 96 },
-          originalWidth: 96,
-          originalHeight: 96,
-          aspectRatio: 1,
-          croppedDataUrl: '',
-          svgContent: text,
-          variant: 'VARIANT 01',
-          status: 'Ready',
-          validation: validateSingleSvg(text, 96, 96),
-        });
-      }
-    }
-    if (newItems.length > 0) {
-      setExtractedIcons((prev) => [...prev, ...newItems]);
-    }
+  const updateSettings = (patch: Partial<PresentationSettings>) => {
+    setPresentationSettings((prev) => {
+      const next = { ...prev, ...patch };
+      return next;
+    });
   };
 
-  const handleSimulate100Icons = () => {
-    if (extractedIcons.length === 0) return;
-    const batch100: ExtractedIconItem[] = [];
-    for (let i = 0; i < 100; i++) {
-      const base = extractedIcons[i % extractedIcons.length];
-      const num = String(i + 1).padStart(2, '0');
-      batch100.push({
-        ...base,
-        id: `sim-100-${i}`,
-        index: i + 1,
-        name: `${num}.svg`,
+  const handleSelectGridPreset = (preset: { count: number; cols: number; rows: number }) => {
+    updateSettings({
+      iconsPerSheet: preset.count,
+      columns: preset.cols,
+      rows: preset.rows,
+    });
+  };
+
+  const handleSelectSizePreset = (label: CanvasSizePreset) => {
+    const found = CANVAS_SIZE_PRESETS.find((p) => p.label === label);
+    if (found && label !== 'Custom Size') {
+      updateSettings({
+        canvasSizePreset: label,
+        customWidth: found.w,
+        customHeight: found.h,
       });
+    } else {
+      updateSettings({ canvasSizePreset: label });
     }
-    setExtractedIcons(batch100);
-    setSelectedPresentationIndex(0);
   };
 
-  const updateNumericOrAuto = (
-    key: 'columns' | 'rows' | 'canvasWidth' | 'canvasHeight' | 'iconSize' | 'spacing' | 'padding' | 'margin',
-    val: string
-  ) => {
-    if (val.trim().toLowerCase() === 'auto' || val.trim() === '') {
-      setPresentationSettings((prev) => ({ ...prev, [key]: 'Auto' }));
-    } else {
-      const num = Number(val);
-      if (!Number.isNaN(num) && num > 0) {
-        setPresentationSettings((prev) => ({ ...prev, [key]: num }));
-      }
+  const handleExportAllZip = async () => {
+    if (presentations.length === 0) return;
+    setExportingBundle(true);
+    try {
+      await exportFullStudioBundleZip(extractedIcons, presentations);
+    } finally {
+      setExportingBundle(false);
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-[var(--border-subtle)] pb-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            ICON SHEET PRESENTATION BUILDER
+            ICON SET PRESENTATION BUILDER (SIZE · SHAPE · TEXT)
           </h1>
           <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-            Automatic multi-presentation grid calculation, proportional aspect ratio scaling, safe area enforcement, and pre-export SVG validation.
+            Design your custom Icon Set Presentation with different Sizes, Backing Shapes, Colors, and Header/Footer Texts. Automatically populates whenever you click <strong>Icon Sheet</strong>!
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => svgUploadRef.current?.click()}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] flex items-center gap-1.5"
+            onClick={() => regeneratePresentations()}
+            className="px-3.5 py-2 text-xs font-semibold rounded bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] flex items-center gap-1.5"
           >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Add SVG Icons</span>
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Rebuild Presentation</span>
           </button>
 
           <button
             type="button"
-            onClick={handleSimulate100Icons}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
+            onClick={autoFixPresentations}
+            className="px-3.5 py-2 text-xs font-semibold rounded bg-[var(--bg-elevated)] text-[var(--accent-primary)] border border-[var(--accent-primary)]/40 hover:bg-[var(--accent-soft)] flex items-center gap-1.5"
           >
-            Load 100 SVG Icons Test
+            <Wrench className="w-3.5 h-3.5" />
+            <span>Auto-Center & Balance</span>
           </button>
 
           <button
             type="button"
-            onClick={() => exportIndividualSvgsAsZip(extractedIcons)}
-            className="px-3 py-1.5 text-xs font-medium rounded bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)]"
-          >
-            Export Individual SVGs
-          </button>
-
-          <button
-            type="button"
-            onClick={() => exportAllPresentationsAsZip(presentations)}
-            disabled={presentations.length === 0}
-            className="px-3.5 py-1.5 text-xs font-semibold rounded bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 disabled:opacity-40 flex items-center gap-1.5"
+            onClick={() => void handleExportAllZip()}
+            disabled={presentations.length === 0 || exportingBundle}
+            className="px-4 py-2 text-xs font-bold rounded bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Export ZIP (All Sheets)</span>
+            <span>
+              {exportingBundle ? 'Packaging ZIP...' : 'Export Presentation + All Vectors (.ZIP)'}
+            </span>
           </button>
-
-          <input
-            ref={svgUploadRef}
-            type="file"
-            accept=".svg,image/svg+xml"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              if (e.target.files) void handleSvgFilesUpload(e.target.files);
-            }}
-          />
         </div>
       </div>
 
-      {/* Main 12-Col Layout: Left Presentation Settings + Presentations List (4 cols) | Right Preview & Validation (8 cols) */}
+      {/* 1-Click Ready-Made Presentation Templates */}
+      <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-2.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+            <LayoutTemplate className="w-3.5 h-3.5 text-[var(--accent-primary)]" />
+            1-CLICK ICON SET PRESENTATION TEMPLATES
+          </span>
+          <span className="text-[11px] text-[var(--text-muted)]">
+            Saved automatically as your default Icon Sheet presentation style
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+          {PRESENTATION_TEMPLATES.map((tpl) => {
+            const isCurrent =
+              presentationSettings.iconShape === tpl.patch.iconShape &&
+              presentationSettings.backgroundStyle === tpl.patch.backgroundStyle;
+            return (
+              <button
+                key={tpl.name}
+                type="button"
+                onClick={() => updateSettings(tpl.patch)}
+                className={`p-3 rounded-lg border text-left transition-all ${
+                  isCurrent
+                    ? 'border-[var(--accent-primary)] bg-[var(--accent-soft)]'
+                    : 'border-[var(--border-subtle)] bg-[var(--bg-canvas)] hover:border-[var(--accent-primary)]/50'
+                }`}
+              >
+                <div className="text-xs font-bold text-[var(--text-primary)]">{tpl.name}</div>
+                <div className="text-[11px] text-[var(--text-secondary)] mt-0.5 line-clamp-1">
+                  {tpl.desc}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Settings & Presentations List (4 cols) */}
-        <div className="lg:col-span-4 space-y-5">
-          {/* PRESENTATION SETTINGS PANEL (Section 25 exact controls) */}
-          <div className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-4">
-            <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2.5">
-              <span className="text-xs font-semibold text-[var(--text-primary)]">
-                PRESENTATION SETTINGS
-              </span>
+        {/* Left Column: Presentation Designer Controls (Size | Shape | Text) (5 cols) */}
+        <div className="lg:col-span-5 space-y-4">
+          <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-4">
+            {/* 3 Designer Tabs: SIZE | SHAPE | TEXT */}
+            <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-xs font-semibold">
               <button
                 type="button"
-                onClick={autoFixPresentations}
-                className="text-xs text-[var(--accent-primary)] hover:underline"
+                onClick={() => setActiveBuilderTab('size')}
+                className={`py-2 px-2 rounded-md flex items-center justify-center gap-1.5 transition-colors ${
+                  activeBuilderTab === 'size'
+                    ? 'bg-[var(--accent-primary)] text-slate-950 font-bold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
               >
-                Reset to Auto
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span>1. SIZE & GRID</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveBuilderTab('shape')}
+                className={`py-2 px-2 rounded-md flex items-center justify-center gap-1.5 transition-colors ${
+                  activeBuilderTab === 'shape'
+                    ? 'bg-[var(--accent-primary)] text-slate-950 font-bold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                <Shapes className="w-3.5 h-3.5" />
+                <span>2. SHAPE & COLOR</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveBuilderTab('text')}
+                className={`py-2 px-2 rounded-md flex items-center justify-center gap-1.5 transition-colors ${
+                  activeBuilderTab === 'text'
+                    ? 'bg-[var(--accent-primary)] text-slate-950 font-bold'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                }`}
+              >
+                <Type className="w-3.5 h-3.5" />
+                <span>3. TEXT & TITLE</span>
               </button>
             </div>
 
-            {/* Icons Per Presentation */}
-            <div>
-              <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1.5">
-                Icons Per Presentation
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={200}
-                  value={presentationSettings.iconsPerPresentation}
-                  onChange={(e) =>
-                    setPresentationSettings((prev) => ({
-                      ...prev,
-                      iconsPerPresentation: Math.max(1, Number(e.target.value) || 25),
-                    }))
-                  }
-                  className="w-24 px-3 py-1.5 text-xs font-mono rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
-                />
-                <div className="flex items-center gap-1">
-                  {PRESET_COUNTS.map((cnt) => (
-                    <button
-                      key={cnt}
-                      type="button"
-                      onClick={() =>
-                        setPresentationSettings((prev) => ({
-                          ...prev,
-                          iconsPerPresentation: cnt,
-                        }))
+            {/* TAB 1: SIZE & GRID */}
+            {activeBuilderTab === 'size' && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1.5">
+                    Artboard / Presentation Size Preset
+                  </label>
+                  <select
+                    value={presentationSettings.canvasSizePreset}
+                    onChange={(e) =>
+                      handleSelectSizePreset(e.target.value as CanvasSizePreset)
+                    }
+                    className="w-full px-3 py-2 rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)] font-mono"
+                  >
+                    {CANVAS_SIZE_PRESETS.map((p) => (
+                      <option key={p.label} value={p.label}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Custom Width & Height */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[var(--text-secondary)] mb-1">
+                      Width (px)
+                    </label>
+                    <input
+                      type="number"
+                      min={600}
+                      max={8000}
+                      step={100}
+                      value={presentationSettings.customWidth}
+                      onChange={(e) =>
+                        updateSettings({
+                          canvasSizePreset: 'Custom Size',
+                          customWidth: Number(e.target.value) || 2000,
+                        })
                       }
-                      className={`px-2 py-1 text-xs font-mono rounded border ${
-                        presentationSettings.iconsPerPresentation === cnt
-                          ? 'bg-[var(--accent-primary)] text-slate-950 border-[var(--accent-primary)] font-semibold'
-                          : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)]'
-                      }`}
-                    >
-                      {cnt}
-                    </button>
-                  ))}
+                      className="w-full px-3 py-1.5 font-mono rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[var(--text-secondary)] mb-1">
+                      Height (px)
+                    </label>
+                    <input
+                      type="number"
+                      min={600}
+                      max={8000}
+                      step={100}
+                      value={presentationSettings.customHeight}
+                      onChange={(e) =>
+                        updateSettings({
+                          canvasSizePreset: 'Custom Size',
+                          customHeight: Number(e.target.value) || 2000,
+                        })
+                      }
+                      className="w-full px-3 py-1.5 font-mono rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
+                    />
+                  </div>
+                </div>
+
+                {/* Grid Layout Presets (6, 9, 12, 16, 20, 25, 30, 36) */}
+                <div>
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1.5">
+                    Icons Per Sheet & Grid Layout
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {GRID_PRESETS.map((g) => {
+                      const active =
+                        presentationSettings.columns === g.cols &&
+                        presentationSettings.rows === g.rows;
+                      return (
+                        <button
+                          key={g.label}
+                          type="button"
+                          onClick={() => handleSelectGridPreset(g)}
+                          className={`px-2.5 py-1.5 rounded font-mono text-left border transition-colors ${
+                            active
+                              ? 'bg-[var(--accent-primary)] text-slate-950 font-bold border-[var(--accent-primary)]'
+                              : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          {g.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Custom Columns & Rows */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[var(--text-secondary)] mb-1">
+                      Columns ({presentationSettings.columns})
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={presentationSettings.columns}
+                      onChange={(e) => {
+                        const cols = Math.max(1, Math.min(10, Number(e.target.value) || 1));
+                        updateSettings({
+                          columns: cols,
+                          iconsPerSheet: cols * presentationSettings.rows,
+                        });
+                      }}
+                      className="w-full px-3 py-1.5 font-mono rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[var(--text-secondary)] mb-1">
+                      Rows ({presentationSettings.rows})
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={presentationSettings.rows}
+                      onChange={(e) => {
+                        const rows = Math.max(1, Math.min(10, Number(e.target.value) || 1));
+                        updateSettings({
+                          rows,
+                          iconsPerSheet: presentationSettings.columns * rows,
+                        });
+                      }}
+                      className="w-full px-3 py-1.5 font-mono rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
+                    />
+                  </div>
+                </div>
+
+                {/* Sliders: Icon Scale, Outer Padding, Cell Spacing */}
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-[var(--text-secondary)]">Icon Size in Cell</span>
+                      <span className="font-mono font-bold text-[var(--accent-primary)]">
+                        {presentationSettings.iconSizePercent}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={25}
+                      max={92}
+                      value={presentationSettings.iconSizePercent}
+                      onChange={(e) =>
+                        updateSettings({ iconSizePercent: Number(e.target.value) })
+                      }
+                      className="w-full accent-[var(--accent-primary)]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-[var(--text-secondary)]">Outer Margin Padding</span>
+                      <span className="font-mono text-[var(--text-primary)]">
+                        {presentationSettings.padding}px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={20}
+                      max={120}
+                      value={presentationSettings.padding}
+                      onChange={(e) => updateSettings({ padding: Number(e.target.value) })}
+                      className="w-full accent-[var(--accent-primary)]"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-[var(--text-secondary)]">Grid Spacing Gap</span>
+                      <span className="font-mono text-[var(--text-primary)]">
+                        {presentationSettings.spacing}px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={8}
+                      max={64}
+                      value={presentationSettings.spacing}
+                      onChange={(e) => updateSettings({ spacing: Number(e.target.value) })}
+                      className="w-full accent-[var(--accent-primary)]"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Grid & Dimension Inputs */}
-            <div className="grid grid-cols-2 gap-2.5 text-xs">
-              {[
-                { key: 'columns', label: 'Columns' },
-                { key: 'rows', label: 'Rows' },
-                { key: 'canvasWidth', label: 'Canvas Width' },
-                { key: 'canvasHeight', label: 'Canvas Height' },
-                { key: 'iconSize', label: 'Icon Size' },
-                { key: 'spacing', label: 'Spacing' },
-                { key: 'padding', label: 'Padding' },
-                { key: 'margin', label: 'Margin' },
-              ].map((field) => {
-                const val = presentationSettings[field.key as keyof typeof presentationSettings];
-                return (
-                  <div key={field.key}>
-                    <label className="block text-[11px] text-[var(--text-secondary)] mb-1">
-                      {field.label}
+            {/* TAB 2: SHAPE & COLORS */}
+            {activeBuilderTab === 'shape' && (
+              <div className="space-y-4 text-xs">
+                <div>
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1.5">
+                    Icon Backing Container Shape
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {ICON_SHAPES.map((shape) => {
+                      const active = (presentationSettings.iconShape || 'Rounded Square') === shape;
+                      return (
+                        <button
+                          key={shape}
+                          type="button"
+                          onClick={() => updateSettings({ iconShape: shape })}
+                          className={`px-2.5 py-2 rounded text-left font-medium border transition-colors ${
+                            active
+                              ? 'bg-[var(--accent-primary)] text-slate-950 font-bold border-[var(--accent-primary)]'
+                              : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]'
+                          }`}
+                        >
+                          {shape}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Shape Fill & Stroke Color Pickers */}
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[var(--text-secondary)] mb-1">
+                      Shape Fill Color
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={presentationSettings.shapeFillColor || '#F8FAFC'}
+                        onChange={(e) => updateSettings({ shapeFillColor: e.target.value })}
+                        className="w-8 h-8 rounded cursor-pointer border border-[var(--border-subtle)] bg-transparent"
+                      />
+                      <input
+                        type="text"
+                        value={presentationSettings.shapeFillColor || '#F8FAFC'}
+                        onChange={(e) => updateSettings({ shapeFillColor: e.target.value })}
+                        className="w-full px-2 py-1.5 font-mono rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[var(--text-secondary)] mb-1">
+                      Shape Border Color
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={presentationSettings.shapeStrokeColor || '#E2E8F0'}
+                        onChange={(e) => updateSettings({ shapeStrokeColor: e.target.value })}
+                        className="w-8 h-8 rounded cursor-pointer border border-[var(--border-subtle)] bg-transparent"
+                      />
+                      <input
+                        type="text"
+                        value={presentationSettings.shapeStrokeColor || '#E2E8F0'}
+                        onChange={(e) => updateSettings({ shapeStrokeColor: e.target.value })}
+                        className="w-full px-2 py-1.5 font-mono rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Shape Border Width */}
+                <div>
+                  <div className="flex justify-between mb-1">
+                    <span className="text-[var(--text-secondary)]">Shape Border Thickness</span>
+                    <span className="font-mono text-[var(--text-primary)]">
+                      {presentationSettings.shapeStrokeWidth ?? 2}px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={8}
+                    step={0.5}
+                    value={presentationSettings.shapeStrokeWidth ?? 2}
+                    onChange={(e) =>
+                      updateSettings({ shapeStrokeWidth: Number(e.target.value) })
+                    }
+                    className="w-full accent-[var(--accent-primary)]"
+                  />
+                </div>
+
+                {/* Canvas Background Preset & Custom Color */}
+                <div className="pt-2 border-t border-[var(--border-subtle)] space-y-3">
+                  <div>
+                    <label className="block font-semibold text-[var(--text-secondary)] mb-1.5">
+                      Presentation Canvas Background
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {BACKGROUNDS.map((bg) => (
+                        <button
+                          key={bg}
+                          type="button"
+                          onClick={() => updateSettings({ backgroundStyle: bg })}
+                          className={`px-2.5 py-1.5 rounded text-xs font-medium border ${
+                            presentationSettings.backgroundStyle === bg
+                              ? 'bg-[var(--accent-primary)] text-slate-950 font-semibold border-[var(--accent-primary)]'
+                              : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)]'
+                          }`}
+                        >
+                          {bg}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[var(--text-secondary)] mb-1">
+                      Custom Canvas Background Color
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={presentationSettings.canvasBgColor || '#FFFFFF'}
+                        onChange={(e) => updateSettings({ canvasBgColor: e.target.value })}
+                        className="w-8 h-8 rounded cursor-pointer border border-[var(--border-subtle)] bg-transparent"
+                      />
+                      <input
+                        type="text"
+                        value={presentationSettings.canvasBgColor || '#FFFFFF'}
+                        onChange={(e) => updateSettings({ canvasBgColor: e.target.value })}
+                        className="w-full px-2.5 py-1.5 font-mono rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: TEXT, HEADER & LABELS */}
+            {activeBuilderTab === 'text' && (
+              <div className="space-y-3.5 text-xs">
+                <div className="flex flex-wrap items-center gap-4 pb-2 border-b border-[var(--border-subtle)]">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={presentationSettings.showHeader !== false}
+                      onChange={(e) => updateSettings({ showHeader: e.target.checked })}
+                      className="rounded accent-[var(--accent-primary)]"
+                    />
+                    <span className="font-semibold text-[var(--text-primary)]">Show Header</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={presentationSettings.showIconLabels !== false}
+                      onChange={(e) => updateSettings({ showIconLabels: e.target.checked })}
+                      className="rounded accent-[var(--accent-primary)]"
+                    />
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      Show Icon Labels (#01)
+                    </span>
+                  </label>
+
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={presentationSettings.showFooter !== false}
+                      onChange={(e) => updateSettings({ showFooter: e.target.checked })}
+                      className="rounded accent-[var(--accent-primary)]"
+                    />
+                    <span className="font-semibold text-[var(--text-primary)]">Show Footer</span>
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1">
+                    Main Presentation Title
+                  </label>
+                  <input
+                    type="text"
+                    value={presentationSettings.headerTitle ?? presentationSettings.title}
+                    onChange={(e) =>
+                      updateSettings({
+                        headerTitle: e.target.value,
+                        title: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. CYBERSECURITY & TECH ICON PACK"
+                    className="w-full px-3 py-1.5 rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)] font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-[var(--text-secondary)] mb-1">
+                    Presentation Subtitle / Description
+                  </label>
+                  <input
+                    type="text"
+                    value={presentationSettings.headerSubtitle || ''}
+                    onChange={(e) => updateSettings({ headerSubtitle: e.target.value })}
+                    placeholder="e.g. 100% Editable Vector SVG Paths · Scalable Presentation"
+                    className="w-full px-3 py-1.5 rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-[var(--text-secondary)] mb-1">
+                      Top-Right Badge Text
                     </label>
                     <input
                       type="text"
-                      value={String(val)}
-                      onChange={(e) =>
-                        updateNumericOrAuto(field.key as any, e.target.value)
-                      }
-                      className="w-full px-2.5 py-1.5 text-xs font-mono rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
+                      value={presentationSettings.badgeText || ''}
+                      onChange={(e) => updateSettings({ badgeText: e.target.value })}
+                      placeholder="e.g. PRO VECTOR SET"
+                      className="w-full px-3 py-1.5 rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)] font-mono"
                     />
                   </div>
-                );
-              })}
-            </div>
 
-            {/* 5 Mandatory Checkboxes */}
-            <div className="space-y-2 pt-2 border-t border-[var(--border-subtle)] text-xs">
-              {[
-                { key: 'autoFit', label: 'Auto Fit' },
-                { key: 'equalSpacing', label: 'Equal Spacing' },
-                { key: 'preserveAspectRatio', label: 'Preserve Aspect Ratio' },
-                { key: 'preventCropping', label: 'Prevent Cropping' },
-                { key: 'preventOverlap', label: 'Prevent Overlap' },
-              ].map((chk) => (
-                <label
-                  key={chk.key}
-                  className="flex items-center gap-2 text-[var(--text-secondary)] cursor-pointer select-none"
+                  <div>
+                    <label className="block font-semibold text-[var(--text-secondary)] mb-1">
+                      Footer Signature Text
+                    </label>
+                    <input
+                      type="text"
+                      value={presentationSettings.footerText || ''}
+                      onChange={(e) => updateSettings({ footerText: e.target.value })}
+                      placeholder="e.g. SS SMART STUDIO · Editable SVG"
+                      className="w-full px-3 py-1.5 rounded bg-[var(--bg-canvas)] border border-[var(--border-subtle)] text-[var(--text-primary)]"
+                    />
+                  </div>
+                </div>
+
+                {/* Typography Color Controls */}
+                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-[var(--border-subtle)]">
+                  <div>
+                    <label className="block text-[11px] text-[var(--text-secondary)] mb-1">
+                      Title Color
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        value={presentationSettings.titleColor || '#0F172A'}
+                        onChange={(e) => updateSettings({ titleColor: e.target.value })}
+                        className="w-7 h-7 rounded cursor-pointer border border-[var(--border-subtle)]"
+                      />
+                      <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                        {presentationSettings.titleColor || '#0F172A'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-[var(--text-secondary)] mb-1">
+                      Subtitle Color
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        value={presentationSettings.subtitleColor || '#64748B'}
+                        onChange={(e) => updateSettings({ subtitleColor: e.target.value })}
+                        className="w-7 h-7 rounded cursor-pointer border border-[var(--border-subtle)]"
+                      />
+                      <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                        {presentationSettings.subtitleColor || '#64748B'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-[var(--text-secondary)] mb-1">
+                      Label (#01) Color
+                    </label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        value={presentationSettings.labelColor || '#475569'}
+                        onChange={(e) => updateSettings({ labelColor: e.target.value })}
+                        className="w-7 h-7 rounded cursor-pointer border border-[var(--border-subtle)]"
+                      />
+                      <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                        {presentationSettings.labelColor || '#475569'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Export Current Presentation Sheet Formats */}
+          {activePresentation && (
+            <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-3">
+              <div className="text-xs font-semibold text-[var(--text-primary)] border-b border-[var(--border-subtle)] pb-2">
+                DOWNLOAD ACTIVE ICON SET PRESENTATION
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadSvgFile(
+                      `icon-set-presentation-${activePresentation.index}.svg`,
+                      activePresentation.svgSheetContent
+                    )
+                  }
+                  className="py-2 px-3 rounded text-xs font-bold bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 flex items-center justify-center gap-1"
                 >
-                  <input
-                    type="checkbox"
-                    checked={Boolean(presentationSettings[chk.key as keyof typeof presentationSettings])}
-                    onChange={(e) =>
-                      setPresentationSettings((prev) => ({
-                        ...prev,
-                        [chk.key]: e.target.checked,
-                      }))
-                    }
-                    className="rounded accent-[var(--accent-primary)]"
-                  />
-                  <span>{chk.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>SVG Sheet</span>
+                </button>
 
-          {/* MULTIPLE PRESENTATIONS LIST (Section 32 exact format) */}
-          <div className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-3">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-[var(--text-primary)]">
-                Presentations ({presentations.length})
-              </span>
-              <span className="font-mono text-[var(--text-muted)]">
-                Total: {extractedIcons.length} Icons
-              </span>
-            </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void downloadPngFromSvg(
+                      `icon-set-presentation-${activePresentation.index}.png`,
+                      activePresentation.svgSheetContent,
+                      presentationSettings.customWidth || 2000,
+                      presentationSettings.customHeight || 2000
+                    )
+                  }
+                  className="py-2 px-3 rounded text-xs font-semibold bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] flex items-center justify-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PNG ({presentationSettings.customWidth}px)</span>
+                </button>
 
-            <div className="space-y-1.5 max-h-60 overflow-y-auto">
-              {presentations.map((p, idx) => {
-                const isSelected = idx === selectedPresentationIndex;
-                const num = String(p.index).padStart(2, '0');
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setSelectedPresentationIndex(idx)}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded text-xs font-mono transition-colors ${
-                      isSelected
-                        ? 'bg-[var(--accent-soft)] text-[var(--accent-primary)] border border-[var(--accent-primary)]/50'
-                        : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
-                    <span>
-                      {num} &nbsp; {p.placedIcons.length} Icons ({p.rangeLabel})
-                    </span>
-                    <span className={p.allPassed ? 'text-emerald-400' : 'text-amber-400'}>
-                      {p.allPassed ? '✓ Ready' : '! Review'}
-                    </span>
-                  </button>
-                );
-              })}
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadEpsFromSvg(
+                      `icon-set-presentation-${activePresentation.index}.eps`,
+                      activePresentation.svgSheetContent
+                    )
+                  }
+                  className="py-2 px-3 rounded text-xs font-semibold bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] flex items-center justify-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>EPS Sheet</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Right: Presentation Canvas Preview + Validation Checklist + Export (8 cols) */}
-        <div className="lg:col-span-8 space-y-4">
-          {currentPresentation ? (
-            <>
-              {/* Top Preview Controls */}
-              <div className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold font-mono text-[var(--text-primary)]">
-                    {currentPresentation.title.toUpperCase()}
-                  </span>
-                  <span className="text-xs font-mono text-[var(--text-secondary)]">
-                    {currentPresentation.rangeLabel} · {currentPresentation.columns}×{currentPresentation.rows} Grid · {currentPresentation.canvasWidth}×{currentPresentation.canvasHeight}px
-                  </span>
-                </div>
-
-                {/* Zoom / Fit / Safe Area / Regenerate */}
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.15).toFixed(2))))}
-                    className="p-1.5 rounded bg-[var(--bg-canvas)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]"
-                    title="Zoom Out"
-                  >
-                    <ZoomOut className="w-3.5 h-3.5" />
-                  </button>
-                  <span className="text-xs font-mono px-2 text-[var(--text-secondary)]">
-                    {Math.round(zoom * 100)}%
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setZoom((z) => Math.min(2, Number((z + 0.15).toFixed(2))))}
-                    className="p-1.5 rounded bg-[var(--bg-canvas)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]"
-                    title="Zoom In"
-                  >
-                    <ZoomIn className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setZoom(1)}
-                    className="px-2.5 py-1 text-xs rounded bg-[var(--bg-canvas)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] flex items-center gap-1"
-                  >
-                    <Maximize2 className="w-3 h-3" />
-                    <span>Fit</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowSafeGrid((s) => !s)}
-                    className={`px-2.5 py-1 text-xs rounded border ${
-                      showSafeGrid
-                        ? 'bg-[var(--accent-soft)] text-[var(--accent-primary)] border-[var(--accent-primary)]/40'
-                        : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border-[var(--border-subtle)]'
-                    }`}
-                  >
-                    Safe Margin Box
-                  </button>
-                  <button
-                    type="button"
-                    onClick={regeneratePresentations}
-                    className="px-2.5 py-1 text-xs rounded bg-[var(--bg-canvas)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)] flex items-center gap-1"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>Regenerate</span>
-                  </button>
-                </div>
+        {/* Right Column: Live Icon Set Presentation Preview Canvas (7 cols) */}
+        <div className="lg:col-span-7 space-y-4">
+          <div className="p-5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
+              <div>
+                <span className="text-xs font-bold text-[var(--text-primary)]">
+                  LIVE ICON SET PRESENTATION CANVAS
+                </span>
+                <span className="ml-2 text-xs font-mono text-[var(--text-muted)]">
+                  · {presentationSettings.customWidth}×{presentationSettings.customHeight}px · Shape:{' '}
+                  {presentationSettings.iconShape || 'Rounded Square'} · Grid:{' '}
+                  {presentationSettings.columns}×{presentationSettings.rows}
+                </span>
               </div>
 
-              {/* Interactive Presentation Canvas Viewport */}
-              <div className="p-6 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-canvas)] overflow-auto flex items-center justify-center min-h-[440px] max-h-[540px]">
+              {/* Multi-Sheet Selector if more icons than 1 sheet */}
+              {presentations.length > 1 && (
+                <div className="flex items-center gap-1">
+                  {presentations.map((sheet, idx) => (
+                    <button
+                      key={sheet.id}
+                      type="button"
+                      onClick={() => setSelectedPresentationIndex(idx)}
+                      className={`px-2.5 py-1 rounded text-xs font-mono font-semibold ${
+                        selectedPresentationIndex === idx
+                          ? 'bg-[var(--accent-primary)] text-slate-950'
+                          : 'bg-[var(--bg-canvas)] text-[var(--text-secondary)] border border-[var(--border-subtle)]'
+                      }`}
+                    >
+                      Sheet #{sheet.index} ({sheet.icons.length})
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Rendered SVG Presentation Artboard */}
+            {activePresentation ? (
+              <div className="rounded-xl border border-[var(--border-subtle)] bg-slate-950/40 p-4 flex items-center justify-center overflow-auto">
                 <div
-                  className="bg-white rounded shadow-sm border border-slate-300 transition-transform origin-center relative"
-                  style={{
-                    width: `${Math.min(560, currentPresentation.canvasWidth * 0.45) * zoom}px`,
-                    aspectRatio: `${currentPresentation.canvasWidth} / ${currentPresentation.canvasHeight}`,
-                  }}
-                >
-                  <svg
-                    viewBox={`0 0 ${currentPresentation.canvasWidth} ${currentPresentation.canvasHeight}`}
-                    className="w-full h-full block"
-                  >
-                    <rect
-                      width={currentPresentation.canvasWidth}
-                      height={currentPresentation.canvasHeight}
-                      fill="#FFFFFF"
-                    />
-
-                    {/* Safe Canvas Boundary Indicator */}
-                    {showSafeGrid && (
-                      <rect
-                        x={currentPresentation.margin}
-                        y={currentPresentation.margin}
-                        width={currentPresentation.canvasWidth - currentPresentation.margin * 2}
-                        height={currentPresentation.canvasHeight - currentPresentation.margin * 2}
-                        fill="none"
-                        stroke="#E2E8F0"
-                        strokeWidth="2"
-                        strokeDasharray="8 6"
-                      />
-                    )}
-
-                    {currentPresentation.placedIcons.map((p) => {
-                      const vbMatch = p.icon.svgContent.match(/viewBox=["']([^"']+)["']/i);
-                      const viewBox = vbMatch
-                        ? vbMatch[1]
-                        : `0 0 ${p.icon.originalWidth} ${p.icon.originalHeight}`;
-                      const innerMatch = p.icon.svgContent.match(/<svg[^>]*>([\s\S]*?)<\/svg>/i);
-                      const innerMarkup = innerMatch ? innerMatch[1] : p.icon.svgContent;
-
-                      return (
-                        <g key={p.icon.id}>
-                          {showSafeGrid && (
-                            <rect
-                              x={p.cellX}
-                              y={p.cellY}
-                              width={p.cellWidth}
-                              height={p.cellHeight}
-                              fill="none"
-                              stroke="#CBD5E1"
-                              strokeWidth="1.5"
-                            />
-                          )}
-                          <svg
-                            x={p.drawX}
-                            y={p.drawY}
-                            width={p.drawWidth}
-                            height={p.drawHeight}
-                            viewBox={viewBox}
-                            preserveAspectRatio="xMidYMid meet"
-                            dangerouslySetInnerHTML={{ __html: innerMarkup }}
-                          />
-                        </g>
-                      );
-                    })}
-                  </svg>
-                </div>
+                  className="w-full max-w-[680px] rounded-lg shadow-xl overflow-hidden border border-slate-300/30 [&>svg]:w-full [&>svg]:h-auto [&>svg]:block"
+                  dangerouslySetInnerHTML={{ __html: activePresentation.svgSheetContent }}
+                />
               </div>
-
-              {/* Pre-Export Presentation Validation & Export Bar (Sections 31 & 33) */}
-              <div className="p-4 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-[var(--text-primary)]">
-                    PRE-EXPORT PRESENTATION VALIDATION
-                  </span>
-
-                  {!currentPresentation.allPassed && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={autoFixPresentations}
-                        className="px-3 py-1 text-xs font-semibold rounded bg-amber-400 text-slate-950 flex items-center gap-1"
-                      >
-                        <Wrench className="w-3.5 h-3.5" />
-                        <span>Auto Fix</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* 8 Mandatory Validation Checks */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
-                  {[
-                    { key: 'isComplete', label: 'Complete' },
-                    { key: 'insideCanvas', label: 'Inside Canvas' },
-                    { key: 'noCrop', label: 'No Crop' },
-                    { key: 'noOverlap', label: 'No Overlap' },
-                    { key: 'noBrokenPath', label: 'No Broken Path' },
-                    { key: 'correctAspectRatio', label: 'Correct Aspect Ratio' },
-                    { key: 'safeMargin', label: 'Safe Margin' },
-                    { key: 'validSvg', label: 'Valid SVG' },
-                  ].map((item) => {
-                    const passed =
-                      currentPresentation.validation[
-                        item.key as keyof typeof currentPresentation.validation
-                      ];
-                    return (
-                      <div
-                        key={item.key}
-                        className={`px-2.5 py-1.5 rounded border flex items-center gap-1.5 ${
-                          passed
-                            ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400'
-                            : 'bg-rose-950/30 border-rose-500/40 text-rose-400'
-                        }`}
-                      >
-                        {passed ? (
-                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                        ) : (
-                          <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                        )}
-                        <span>{item.label}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Export Formats: PNG, JPG, SVG, ZIP */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[var(--border-subtle)]">
-                  <div className="text-xs text-[var(--text-secondary)]">
-                    Export <span className="font-mono text-[var(--text-primary)]">{currentPresentation.title}</span>:
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={!currentPresentation.allPassed}
-                      onClick={() => exportPresentationAsRaster(currentPresentation, 'png')}
-                      className="px-3 py-1.5 text-xs font-semibold rounded bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] disabled:opacity-40"
-                    >
-                      Export PNG (presentation-{String(currentPresentation.index).padStart(2, '0')}.png)
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={!currentPresentation.allPassed}
-                      onClick={() => exportPresentationAsRaster(currentPresentation, 'jpg')}
-                      className="px-3 py-1.5 text-xs font-semibold rounded bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] disabled:opacity-40"
-                    >
-                      Export JPG
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={!currentPresentation.allPassed}
-                      onClick={() => exportPresentationAsSvg(currentPresentation)}
-                      className="px-3 py-1.5 text-xs font-semibold rounded bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-subtle)] hover:border-[var(--accent-primary)] disabled:opacity-40"
-                    >
-                      Export SVG
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={!currentPresentation.allPassed}
-                      onClick={() => exportAllPresentationsAsZip(presentations)}
-                      className="px-3.5 py-1.5 text-xs font-semibold rounded bg-[var(--accent-primary)] text-slate-950 hover:opacity-90 disabled:opacity-40"
-                    >
-                      Export All ZIP
-                    </button>
-                  </div>
-                </div>
+            ) : (
+              <div className="py-20 text-center text-xs text-[var(--text-muted)]">
+                No vector icons available yet. Upload icons in the Vector tab and click{' '}
+                <strong>Icon Sheet</strong>.
               </div>
-            </>
-          ) : null}
+            )}
+          </div>
         </div>
       </div>
     </div>
